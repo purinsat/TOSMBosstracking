@@ -29,6 +29,12 @@ export function getTotalMinutes(
 
 export function parseDurationToMinutes(durationValue: string): number | null {
   const raw = durationValue.trim();
+
+  if (/^\d{1,5}$/.test(raw)) {
+    const totalMinutes = Number(raw);
+    return Number.isNaN(totalMinutes) ? null : totalMinutes;
+  }
+
   if (!/^\d{1,4}:[0-5]\d$/.test(raw)) return null;
   const [hours, minutes] = raw.split(":").map(Number);
   return hours * 60 + minutes;
@@ -36,6 +42,15 @@ export function parseDurationToMinutes(durationValue: string): number | null {
 
 export function formatDurationInput(durationValue: string): string | null {
   const raw = durationValue.trim();
+
+  if (/^\d{1,5}$/.test(raw)) {
+    const totalMinutes = Number(raw);
+    if (Number.isNaN(totalMinutes)) return null;
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+  }
+
   const match = raw.match(/^(\d{1,4}):(\d{1,2})$/);
   if (!match) return null;
 

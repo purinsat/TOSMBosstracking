@@ -275,12 +275,12 @@ export default function RoomPage() {
     let noEventMinutes = 0;
     if (selectedPhase === "No event") {
       if (!noEventTimeInput) {
-        window.alert("Please enter No event duration in HH:MM (example: 01:24).");
+        window.alert("Please enter No event duration (example: 14 or 1:14).");
         return;
       }
       const parsedDuration = parseDurationToMinutes(noEventTimeInput);
       if (parsedDuration === null) {
-        window.alert("Invalid format. Use HH:MM (example: 01:24).");
+        window.alert("Invalid format. Use minutes (14) or H:MM (1:14).");
         return;
       }
       noEventMinutes = parsedDuration;
@@ -624,7 +624,7 @@ export default function RoomPage() {
               {selectedPhase === "No event" && (
                 <div>
                   <label className="mb-1 block text-sm text-slate-300">
-                    No event duration (HH:MM)
+                    No event duration (MM or H:MM)
                   </label>
                   <input
                     type="text"
