@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TOSM Boss Tracker (Room Collaboration V1)
 
-## Getting Started
+Realtime room-based boss tracking app built with Next.js + Tailwind + Supabase.
 
-First, run the development server:
+## Features
+
+- Landing page with **Create Room** and **Join Room**
+- Shared room board at `/room/[code]`
+- Realtime tracker sync across users in same room
+- Shared room settings (phase timings + alarm mute/volume)
+- Countdown sorting and color labels
+
+## Local Setup
+
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. Copy env template and fill your Supabase values:
+
+```bash
+cp .env.example .env.local
+```
+
+3. Apply SQL migration in your Supabase project:
+   - File: `supabase/migrations/202604060001_room_collab_v1.sql`
+
+4. Run dev server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Supabase Environment Variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` (optional for server-side admin operations)
 
-## Learn More
+## Deployment (Vercel)
 
-To learn more about Next.js, take a look at the following resources:
+1. Push this project to GitHub.
+2. Import repo in Vercel.
+3. Add the same environment variables in Vercel project settings.
+4. Deploy.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Realtime Notes
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Countdown is computed client-side from `target_at`.
+- Realtime events sync tracker/settings CRUD for the room.
+- V1 policies are intentionally open for anonymous room-code access.

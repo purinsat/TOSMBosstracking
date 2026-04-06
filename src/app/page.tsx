@@ -1,65 +1,198 @@
-import Image from "next/image";
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+
+import { DEFAULT_SETTINGS } from "@/lib/countdown";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export default function Home() {
+  const router = useRouter();
+  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const [roomName, setRoomName] = useState("");
+  const [joinCode, setJoinCode] = useState("");
+  const [loading, setLoading] = useState<null | "create" | "join">(null);
+  const [error, setError] = useState("");
+
+  async function createRoom() {
+    if (loading) return;
+    setError("");
+    setLoading("create");
+
+    try {
+      const code = await generateUniqueRoomCode(supabase);
+      const { data: roomData, error: roomError } = await supabase
+        .from("rooms")
+        .insert({
+          code,
+          name: roomName.trim() ? roomName.trim() : null,
+        })
+        .select("id, code")
+        .single();
+
+      if (roomError || !roomData) {
+        throw new Error(roomError?.message ?? "Unable to create room.");
+      }
+
+      const { error: settingsError } = await supabase.from("room_settings").insert({
+        room_id: roomData.id,
+        p12: DEFAULT_SETTINGS.p12,
+        p23: DEFAULT_SETTINGS.p23,
+        p34: DEFAULT_SETTINGS.p34,
+        p4on: DEFAULT_SETTINGS.p4on,
+        sound_volume: DEFAULT_SETTINGS.soundVolume,
+        sound_muted: DEFAULT_SETTINGS.soundMuted,
+      });
+
+      if (settingsError) throw new Error(settingsError.message);
+
+      router.push(`/room/${roomData.code}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create room.");
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  async function joinRoom() {
+    if (loading) return;
+    setError("");
+    const normalizedCode = joinCode.trim().toUpperCase();
+    if (!normalizedCode) {
+      setError("Please enter a room code.");
+      return;
+    }
+
+    setLoading("join");
+    try {
+      const { data, error: joinError } = await supabase
+        .from("rooms")
+        .select("code")
+        .eq("code", normalizedCode)
+        .maybeSingle();
+
+      if (joinError) throw new Error(joinError.message);
+      if (!data) {
+        setError("Room not found. Check the room code.");
+        return;
+      }
+
+      router.push(`/room/${normalizedCode}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to join room.");
+    } finally {
+      setLoading(null);
+    }
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+    <main className="min-h-screen bg-slate-950 px-4 py-10 text-slate-100">
+      <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
+        <h1 className="text-center text-4xl font-bold tracking-wide">
+          TOSM Boss Tracking By PonderingTH
+        </h1>
+        <p className="text-center text-base text-slate-300">
+          Create a room to share timers, or join an existing room code.
+        </p>
+
+        <section className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
+          <h2 className="text-xl font-semibold text-sky-300">Create Room</h2>
+          <label className="mt-3 block text-base text-slate-200">
+            Room Name (optional)
+            <input
+              type="text"
+              value={roomName}
+              onChange={(e) => setRoomName(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-lg"
+              placeholder="Guild Party A"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+          </label>
+          <button
+            type="button"
+            onClick={createRoom}
+            disabled={loading !== null}
+            className="mt-3 w-full rounded-xl border border-sky-500 px-4 py-2 text-lg font-semibold text-sky-300 disabled:opacity-60"
           >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+            {loading === "create" ? "Creating..." : "Create Room"}
+          </button>
+        </section>
+
+        <section className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
+          <h2 className="text-xl font-semibold text-sky-300">Join Room</h2>
+          <label className="mt-3 block text-base text-slate-200">
+            Room Code
+            <input
+              type="text"
+              value={joinCode}
+              onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+              className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-lg uppercase"
+              placeholder="AB12CD"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={joinRoom}
+            disabled={loading !== null}
+            className="mt-3 w-full rounded-xl border border-sky-500 px-4 py-2 text-lg font-semibold text-sky-300 disabled:opacity-60"
+          >
+            {loading === "join" ? "Joining..." : "Join Room"}
+          </button>
+        </section>
+
+        {error && (
+          <p className="rounded-xl border border-rose-500/60 bg-rose-950/30 px-3 py-2 text-sm text-rose-200">
+            {error}
+          </p>
+        )}
+
+        <section className="mt-2 rounded-2xl border border-slate-700 bg-slate-900/70 p-4 text-center">
+          <p className="text-base text-slate-200">
+            Please Subscribe at{" "}
+            <a
+              href="https://www.youtube.com/@PonderingTH"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-sky-300 underline underline-offset-4"
+            >
+              youtube.com/@PonderingTH
+            </a>
+          </p>
+          <p className="mt-2 text-sm text-slate-300">
+            Feel free to support us by Join our membership or this link{" "}
+            <a
+              href="https://tipme.in.th/ponderingth"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-sky-300 underline underline-offset-4"
+            >
+              tipme.in.th/ponderingth
+            </a>
+          </p>
+          <p className="mt-2 text-sm text-slate-400">Thanks and enjoyed !</p>
+        </section>
+      </div>
+    </main>
   );
+}
+
+async function generateUniqueRoomCode(
+  supabase: ReturnType<typeof getSupabaseBrowserClient>,
+): Promise<string> {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    let candidate = "";
+    for (let i = 0; i < 6; i += 1) {
+      candidate += chars[Math.floor(Math.random() * chars.length)];
+    }
+
+    const { data, error } = await supabase
+      .from("rooms")
+      .select("id")
+      .eq("code", candidate)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return candidate;
+  }
+
+  throw new Error("Could not generate room code. Please try again.");
 }
