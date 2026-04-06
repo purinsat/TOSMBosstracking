@@ -76,3 +76,20 @@ create trigger trg_room_settings_updated_at
 before update on public.room_settings
 for each row
 execute function public.touch_room_settings_updated_at();
+
+-- Ensure these tables are included in Supabase Realtime publication.
+do $$
+begin
+  alter publication supabase_realtime add table public.trackers;
+exception
+  when duplicate_object then null;
+  when undefined_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.room_settings;
+exception
+  when duplicate_object then null;
+  when undefined_object then null;
+end $$;

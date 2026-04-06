@@ -235,6 +235,38 @@ export default function RoomPage() {
     return () => window.clearInterval(timer);
   }, [room?.id, settings, supabase, trackers]);
 
+  useEffect(() => {
+    if (!room?.id) return;
+
+    const poll = window.setInterval(async () => {
+      const [trackersResponse, settingsResponse] = await Promise.all([
+        supabase
+          .from("trackers")
+          .select("id, room_id, map_lv, ch, phase, no_event_minutes, target_at, created_at")
+          .eq("room_id", room.id)
+          .order("target_at", { ascending: true })
+          .returns<DbTracker[]>(),
+        supabase
+          .from("room_settings")
+          .select("room_id, p12, p23, p34, p4on, sound_volume, sound_muted, updated_at")
+          .eq("room_id", room.id)
+          .single<DbRoomSettings>(),
+      ]);
+
+      if (!trackersResponse.error && trackersResponse.data) {
+        setTrackers(trackersResponse.data.map(mapTracker));
+      }
+
+      if (!settingsResponse.error && settingsResponse.data) {
+        const nextSettings = mapSettings(settingsResponse.data);
+        setSettings(nextSettings);
+        setDraftSettings(nextSettings);
+      }
+    }, 4000);
+
+    return () => window.clearInterval(poll);
+  }, [room?.id, supabase]);
+
   const sortedRows = useMemo(() => {
     return [...trackers]
       .map((tracker) => {
