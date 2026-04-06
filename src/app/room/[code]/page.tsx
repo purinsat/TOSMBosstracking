@@ -374,7 +374,7 @@ export default function RoomPage() {
     setSavingSettings(false);
   }
 
-  async function updateSoundSettings(next: Pick<Settings, "soundMuted" | "soundVolume">) {
+  async function updateSoundSettings(next: Partial<Pick<Settings, "soundMuted" | "soundVolume">>) {
     if (!room?.id) return;
     const previous = settings;
     const merged = { ...settings, ...next };
