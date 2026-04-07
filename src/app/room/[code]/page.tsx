@@ -82,6 +82,13 @@ export default function RoomPage() {
       const mappedRoom = mapRoom(roomData);
       setRoom(mappedRoom);
 
+      const nowIso = new Date().toISOString();
+      await supabase
+        .from("trackers")
+        .delete()
+        .eq("room_id", mappedRoom.id)
+        .lte("target_at", nowIso);
+
       const [settingsResponse, trackersResponse] = await Promise.all([
         supabase
           .from("room_settings")
@@ -92,6 +99,7 @@ export default function RoomPage() {
           .from("trackers")
           .select("id, room_id, map_lv, ch, phase, no_event_minutes, target_at, created_at")
           .eq("room_id", mappedRoom.id)
+          .gt("target_at", nowIso)
           .order("target_at", { ascending: true })
           .returns<DbTracker[]>(),
       ]);
@@ -135,10 +143,12 @@ export default function RoomPage() {
           filter: `room_id=eq.${room.id}`,
         },
         async () => {
+          const nowIso = new Date().toISOString();
           const { data } = await supabase
             .from("trackers")
             .select("id, room_id, map_lv, ch, phase, no_event_minutes, target_at, created_at")
             .eq("room_id", room.id)
+            .gt("target_at", nowIso)
             .order("target_at", { ascending: true })
             .returns<DbTracker[]>();
           setTrackers((data ?? []).map(mapTracker));
@@ -239,11 +249,13 @@ export default function RoomPage() {
     if (!room?.id) return;
 
     const poll = window.setInterval(async () => {
+      const nowIso = new Date().toISOString();
       const [trackersResponse, settingsResponse] = await Promise.all([
         supabase
           .from("trackers")
           .select("id, room_id, map_lv, ch, phase, no_event_minutes, target_at, created_at")
           .eq("room_id", room.id)
+          .gt("target_at", nowIso)
           .order("target_at", { ascending: true })
           .returns<DbTracker[]>(),
         supabase
