@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -55,6 +56,43 @@ export default function RoomPage() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const fiveMinuteAlertedTrackerIdsRef = useRef<Set<string>>(new Set());
 
+  const fetchOrCreateRoomSettings = useCallback(async (roomId: string): Promise<Settings | null> => {
+    const { data, error: readError } = await supabase
+      .from("room_settings")
+      .select("room_id, p12, p23, p34, p4on, sound_volume, sound_muted, updated_at")
+      .eq("room_id", roomId)
+      .maybeSingle<DbRoomSettings>();
+
+    if (readError) {
+      setError(readError.message);
+      return null;
+    }
+    if (data) return mapSettings(data);
+
+    const { data: created, error: createError } = await supabase
+      .from("room_settings")
+      .upsert(
+        {
+          room_id: roomId,
+          p12: DEFAULT_SETTINGS.p12,
+          p23: DEFAULT_SETTINGS.p23,
+          p34: DEFAULT_SETTINGS.p34,
+          p4on: DEFAULT_SETTINGS.p4on,
+          sound_volume: DEFAULT_SETTINGS.soundVolume,
+          sound_muted: DEFAULT_SETTINGS.soundMuted,
+        },
+        { onConflict: "room_id" },
+      )
+      .select("room_id, p12, p23, p34, p4on, sound_volume, sound_muted, updated_at")
+      .single<DbRoomSettings>();
+
+    if (createError) {
+      setError(createError.message);
+      return null;
+    }
+    return mapSettings(created);
+  }, [supabase]);
+
   useEffect(() => {
     if (!roomCode) return;
     let active = true;
@@ -92,12 +130,8 @@ export default function RoomPage() {
         .eq("room_id", mappedRoom.id)
         .lte("target_at", nowIso);
 
-      const [settingsResponse, trackersResponse] = await Promise.all([
-        supabase
-          .from("room_settings")
-          .select("room_id, p12, p23, p34, p4on, sound_volume, sound_muted, updated_at")
-          .eq("room_id", mappedRoom.id)
-          .single<DbRoomSettings>(),
+      const [nextSettings, trackersResponse] = await Promise.all([
+        fetchOrCreateRoomSettings(mappedRoom.id),
         supabase
           .from("trackers")
           .select("id, room_id, map_lv, ch, phase, no_event_minutes, target_at, created_at")
@@ -109,10 +143,7 @@ export default function RoomPage() {
 
       if (!active) return;
 
-      if (settingsResponse.error) {
-        setError(settingsResponse.error.message);
-      } else {
-        const nextSettings = mapSettings(settingsResponse.data);
+      if (nextSettings) {
         setSettings(nextSettings);
         setDraftSettings(nextSettings);
       }
@@ -131,7 +162,7 @@ export default function RoomPage() {
     return () => {
       active = false;
     };
-  }, [roomCode, supabase]);
+  }, [roomCode, supabase, fetchOrCreateRoomSettings]);
 
   useEffect(() => {
     if (!room?.id) return;
@@ -166,13 +197,8 @@ export default function RoomPage() {
           filter: `room_id=eq.${room.id}`,
         },
         async () => {
-          const { data } = await supabase
-            .from("room_settings")
-            .select("room_id, p12, p23, p34, p4on, sound_volume, sound_muted, updated_at")
-            .eq("room_id", room.id)
-            .single<DbRoomSettings>();
-          if (data) {
-            const nextSettings = mapSettings(data);
+          const nextSettings = await fetchOrCreateRoomSettings(room.id);
+          if (nextSettings) {
             setSettings(nextSettings);
             if (!showSettingsModal) {
               setDraftSettings(nextSettings);
@@ -185,7 +211,7 @@ export default function RoomPage() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [room?.id, supabase, showSettingsModal]);
+  }, [room?.id, supabase, showSettingsModal, fetchOrCreateRoomSettings]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -267,7 +293,7 @@ export default function RoomPage() {
           .from("room_settings")
           .select("room_id, p12, p23, p34, p4on, sound_volume, sound_muted, updated_at")
           .eq("room_id", room.id)
-          .single<DbRoomSettings>(),
+          .maybeSingle<DbRoomSettings>(),
       ]);
 
       if (!trackersResponse.error && trackersResponse.data) {
@@ -280,11 +306,19 @@ export default function RoomPage() {
         if (!showSettingsModal) {
           setDraftSettings(nextSettings);
         }
+      } else if (!settingsResponse.error && !settingsResponse.data) {
+        const nextSettings = await fetchOrCreateRoomSettings(room.id);
+        if (nextSettings) {
+          setSettings(nextSettings);
+          if (!showSettingsModal) {
+            setDraftSettings(nextSettings);
+          }
+        }
       }
     }, 4000);
 
     return () => window.clearInterval(poll);
-  }, [room?.id, supabase, showSettingsModal]);
+  }, [room?.id, supabase, showSettingsModal, fetchOrCreateRoomSettings]);
 
   const sortedRows = useMemo(() => {
     const rows = [...trackers]
@@ -448,13 +482,21 @@ export default function RoomPage() {
 
     const { error: updateError } = await supabase
       .from("room_settings")
-      .update({
-        p12: draftSettings.p12,
-        p23: draftSettings.p23,
-        p34: draftSettings.p34,
-        p4on: draftSettings.p4on,
-      })
-      .eq("room_id", room.id);
+      .upsert(
+        {
+          room_id: room.id,
+          p12: draftSettings.p12,
+          p23: draftSettings.p23,
+          p34: draftSettings.p34,
+          p4on: draftSettings.p4on,
+          sound_volume: draftSettings.soundVolume,
+          sound_muted: draftSettings.soundMuted,
+        },
+        { onConflict: "room_id" },
+      )
+      .select("room_id")
+      .single()
+      .then(({ error }) => ({ error }));
 
     if (updateError) {
       setSettings(previous);
@@ -477,11 +519,21 @@ export default function RoomPage() {
 
     const { error: updateError } = await supabase
       .from("room_settings")
-      .update({
-        sound_volume: merged.soundVolume,
-        sound_muted: merged.soundMuted,
-      })
-      .eq("room_id", room.id);
+      .upsert(
+        {
+          room_id: room.id,
+          p12: merged.p12,
+          p23: merged.p23,
+          p34: merged.p34,
+          p4on: merged.p4on,
+          sound_volume: merged.soundVolume,
+          sound_muted: merged.soundMuted,
+        },
+        { onConflict: "room_id" },
+      )
+      .select("room_id")
+      .single()
+      .then(({ error }) => ({ error }));
 
     if (updateError) {
       setSettings(previous);
