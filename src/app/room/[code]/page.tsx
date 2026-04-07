@@ -328,7 +328,19 @@ export default function RoomPage() {
     let noEventMinutes = 0;
     let customMinutes: number | null = null;
 
-    if (quickCommandInput.trim()) {
+    if (customTimeInput.trim()) {
+      const parsedCustom = parseCustomCountdownCommand(customTimeInput);
+      if (!parsedCustom) {
+        window.alert(
+          "Custom command invalid. Use: '103 12 5', '103 12 2:12', or '103 12 :5'.",
+        );
+        return;
+      }
+      mapLv = parsedCustom.mapLv;
+      ch = parsedCustom.ch;
+      phase = "No event";
+      customMinutes = parsedCustom.countdownMinutes;
+    } else if (quickCommandInput.trim()) {
       const parsed = parseQuickCommand(quickCommandInput);
       if (!parsed) {
         window.alert(
@@ -359,14 +371,6 @@ export default function RoomPage() {
           return;
         }
         noEventMinutes = parsedDuration;
-      }
-    }
-
-    if (customTimeInput.trim()) {
-      customMinutes = parseFlexibleDuration(customTimeInput);
-      if (customMinutes === null) {
-        window.alert("Custom time invalid. Use 14, 1:14, or :5 format.");
-        return;
       }
     }
 
@@ -705,17 +709,18 @@ export default function RoomPage() {
               </div>
               <div>
                 <label className="mb-1 block text-sm text-slate-300">
-                  Custom time (optional, override auto-calc)
+                  Custom command (optional, bypass phase defaults)
                 </label>
                 <input
                   type="text"
                   value={customTimeInput}
                   onChange={(e) => setCustomTimeInput(e.target.value)}
                   className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2"
-                  placeholder="14 or 1:14 or :5"
+                  placeholder="103 12 5 or 103 12 2:12 or 103 12 :5"
                 />
                 <p className="mt-1 text-xs text-slate-400">
-                  If set, countdown uses this value directly and ignores phase timing calculation.
+                  Format: Lv Ch Duration. Duration can be minutes, H:MM, or :X/:XX. This
+                  directly sets countdown and ignores phase auto-calculation.
                 </p>
               </div>
               <div>
@@ -729,7 +734,7 @@ export default function RoomPage() {
                   className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2"
                     min={10}
                     max={190}
-                  required={!quickCommandInput.trim()}
+                  required={!quickCommandInput.trim() && !customTimeInput.trim()}
                 />
               </div>
               <div>
@@ -743,7 +748,7 @@ export default function RoomPage() {
                   value={chInput}
                   onChange={(e) => setChInput(e.target.value)}
                   className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2"
-                  required={!quickCommandInput.trim()}
+                  required={!quickCommandInput.trim() && !customTimeInput.trim()}
                 />
               </div>
               <div>
@@ -783,7 +788,11 @@ export default function RoomPage() {
                       )
                     }
                     className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2"
-                    required={selectedPhase === "No event" && !quickCommandInput.trim()}
+                    required={
+                      selectedPhase === "No event" &&
+                      !quickCommandInput.trim() &&
+                      !customTimeInput.trim()
+                    }
                   />
                 </div>
               )}
@@ -1007,4 +1016,20 @@ function parseFlexibleDuration(value: string): number | null {
   }
 
   return parseDurationToMinutes(raw);
+}
+
+function parseCustomCountdownCommand(
+  command: string,
+): { mapLv: number; ch: number; countdownMinutes: number } | null {
+  const parts = command.trim().split(/\s+/);
+  if (parts.length !== 3) return null;
+
+  const mapLv = Number(parts[0]);
+  const ch = Number(parts[1]);
+  if (!isValidLvCh(mapLv, ch)) return null;
+
+  const countdownMinutes = parseFlexibleDuration(parts[2]);
+  if (countdownMinutes === null) return null;
+
+  return { mapLv, ch, countdownMinutes };
 }
