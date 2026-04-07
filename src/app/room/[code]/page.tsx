@@ -48,6 +48,7 @@ export default function RoomPage() {
   const [mapLvInput, setMapLvInput] = useState("");
   const [chInput, setChInput] = useState("");
   const [noEventTimeInput, setNoEventTimeInput] = useState("");
+  const [quickCommandInput, setQuickCommandInput] = useState("");
   const [draftSettings, setDraftSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [savingSettings, setSavingSettings] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -310,6 +311,7 @@ export default function RoomPage() {
     setMapLvInput("");
     setChInput("");
     setNoEventTimeInput("");
+    setQuickCommandInput("");
     setSelectedPhase("No event");
     setShowAddModal(true);
   }
@@ -318,35 +320,53 @@ export default function RoomPage() {
     e.preventDefault();
     if (!room?.id) return;
 
-    const mapLv = Number(mapLvInput);
-    const ch = Number(chInput);
-    if (!mapLv || !ch || ch < 1 || ch > 30) {
-      window.alert("Please enter valid Map/Lv and Channel (1-30).");
-      return;
-    }
-
+    let mapLv = 0;
+    let ch = 0;
+    let phase: Tracker["phase"] = selectedPhase;
     let noEventMinutes = 0;
-    if (selectedPhase === "No event") {
-      if (!noEventTimeInput) {
-        window.alert("Please enter No event duration (example: 14 or 1:14).");
+
+    if (quickCommandInput.trim()) {
+      const parsed = parseQuickCommand(quickCommandInput);
+      if (!parsed) {
+        window.alert(
+          "Quick command invalid. Example: '103 12 3' or '103 13 04:32' or '103 13 :5'.",
+        );
         return;
       }
-      const parsedDuration = parseDurationToMinutes(noEventTimeInput);
-      if (parsedDuration === null) {
-        window.alert("Invalid format. Use minutes (14) or H:MM (1:14).");
+      mapLv = parsed.mapLv;
+      ch = parsed.ch;
+      phase = parsed.phase;
+      noEventMinutes = parsed.noEventMinutes;
+    } else {
+      mapLv = Number(mapLvInput);
+      ch = Number(chInput);
+      if (!isValidLvCh(mapLv, ch)) {
+        window.alert("Please enter valid values: Lv 10-190 and Ch 1-30.");
         return;
       }
-      noEventMinutes = parsedDuration;
+
+      if (selectedPhase === "No event") {
+        if (!noEventTimeInput) {
+          window.alert("Please enter No event duration (example: 14 or 1:14).");
+          return;
+        }
+        const parsedDuration = parseDurationToMinutes(noEventTimeInput);
+        if (parsedDuration === null) {
+          window.alert("Invalid format. Use minutes (14) or H:MM (1:14).");
+          return;
+        }
+        noEventMinutes = parsedDuration;
+      }
     }
 
-    const totalMinutes = getTotalMinutes(selectedPhase, settings, noEventMinutes);
+    const totalMinutes = getTotalMinutes(phase, settings, noEventMinutes);
     const now = Date.now();
     const optimistic: Tracker = {
       id: `tmp_${now}`,
       roomId: room.id,
       mapLv,
       ch,
-      phase: selectedPhase,
+      phase,
       noEventMinutes,
       targetAt: new Date(now + totalMinutes * 60000).toISOString(),
       createdAt: new Date(now).toISOString(),
@@ -361,7 +381,7 @@ export default function RoomPage() {
         room_id: room.id,
         map_lv: mapLv,
         ch,
-        phase: selectedPhase,
+        phase,
         no_event_minutes: noEventMinutes,
         target_at: optimistic.targetAt,
       })
@@ -494,6 +514,10 @@ export default function RoomPage() {
             <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-400">
               <p>
                 Room Code: <span className="font-semibold text-sky-300">{roomCode}</span>
+              </p>
+              <p>
+                Room Name:{" "}
+                <span className="font-semibold text-sky-300">{room?.name ?? "Unnamed Room"}</span>
               </p>
               <button
                 type="button"
@@ -654,15 +678,32 @@ export default function RoomPage() {
             <form className="space-y-4" onSubmit={submitAddForm}>
               <div>
                 <label className="mb-1 block text-sm text-slate-300">
+                  Quick command (optional)
+                </label>
+                <input
+                  type="text"
+                  value={quickCommandInput}
+                  onChange={(e) => setQuickCommandInput(e.target.value)}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2"
+                  placeholder="103 12 3 or 103 13 04:32 or 103 13 :5"
+                />
+                <p className="mt-1 text-xs text-slate-400">
+                  Format: Lv Ch Last. Lv 10-190, Ch 1-30, Last=1-4 phase, H:MM no-event, :X/:XX
+                  minute no-event.
+                </p>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-slate-300">
                   Map / Lv (example: 101, 103, 89, 82)
                 </label>
                 <input
                   type="number"
-                  min={1}
                   value={mapLvInput}
                   onChange={(e) => setMapLvInput(e.target.value)}
                   className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2"
-                  required
+                    min={10}
+                    max={190}
+                  required={!quickCommandInput.trim()}
                 />
               </div>
               <div>
@@ -676,7 +717,7 @@ export default function RoomPage() {
                   value={chInput}
                   onChange={(e) => setChInput(e.target.value)}
                   className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2"
-                  required
+                  required={!quickCommandInput.trim()}
                 />
               </div>
               <div>
@@ -716,7 +757,7 @@ export default function RoomPage() {
                       )
                     }
                     className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2"
-                    required
+                    required={selectedPhase === "No event" && !quickCommandInput.trim()}
                   />
                 </div>
               )}
@@ -894,4 +935,37 @@ async function playTimeoutSound(
   } catch {
     // Ignore devices or browsers that block programmatic audio.
   }
+}
+
+function isValidLvCh(mapLv: number, ch: number): boolean {
+  return Number.isInteger(mapLv) && Number.isInteger(ch) && mapLv >= 10 && mapLv <= 190 && ch >= 1 && ch <= 30;
+}
+
+function parseQuickCommand(
+  command: string,
+): { mapLv: number; ch: number; phase: Tracker["phase"]; noEventMinutes: number } | null {
+  const parts = command.trim().split(/\s+/);
+  if (parts.length !== 3) return null;
+
+  const mapLv = Number(parts[0]);
+  const ch = Number(parts[1]);
+  if (!isValidLvCh(mapLv, ch)) return null;
+
+  const last = parts[2];
+  if (/^[1-4]$/.test(last)) {
+    return { mapLv, ch, phase: last as Tracker["phase"], noEventMinutes: 0 };
+  }
+
+  if (/^:\d{1,2}$/.test(last)) {
+    const minuteOnly = Number(last.slice(1));
+    if (Number.isNaN(minuteOnly) || minuteOnly < 0 || minuteOnly > 59) return null;
+    return { mapLv, ch, phase: "No event", noEventMinutes: minuteOnly };
+  }
+
+  const parsedDuration = parseDurationToMinutes(last);
+  if (parsedDuration !== null) {
+    return { mapLv, ch, phase: "No event", noEventMinutes: parsedDuration };
+  }
+
+  return null;
 }
