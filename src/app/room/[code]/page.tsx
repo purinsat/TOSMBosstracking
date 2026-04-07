@@ -174,7 +174,9 @@ export default function RoomPage() {
           if (data) {
             const nextSettings = mapSettings(data);
             setSettings(nextSettings);
-            setDraftSettings(nextSettings);
+            if (!showSettingsModal) {
+              setDraftSettings(nextSettings);
+            }
           }
         },
       )
@@ -183,7 +185,7 @@ export default function RoomPage() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [room?.id, supabase]);
+  }, [room?.id, supabase, showSettingsModal]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -275,12 +277,14 @@ export default function RoomPage() {
       if (!settingsResponse.error && settingsResponse.data) {
         const nextSettings = mapSettings(settingsResponse.data);
         setSettings(nextSettings);
-        setDraftSettings(nextSettings);
+        if (!showSettingsModal) {
+          setDraftSettings(nextSettings);
+        }
       }
     }, 4000);
 
     return () => window.clearInterval(poll);
-  }, [room?.id, supabase]);
+  }, [room?.id, supabase, showSettingsModal]);
 
   const sortedRows = useMemo(() => {
     const rows = [...trackers]
@@ -341,10 +345,10 @@ export default function RoomPage() {
       phase = "No event";
       customMinutes = parsedCustom.countdownMinutes;
     } else if (quickCommandInput.trim()) {
-      const parsed = parseQuickCommand(quickCommandInput);
+      const parsed = parseQuickCommand(quickCommandInput, settings);
       if (!parsed) {
         window.alert(
-          "Quick command invalid. Example: '103 12 3' or '103 13 04:32' or '103 13 :5'.",
+          "Quick command invalid. Example: '103 12 3', '103 12 2.75', '103 13 04:32', or '103 13 :5'.",
         );
         return;
       }
@@ -352,6 +356,7 @@ export default function RoomPage() {
       ch = parsed.ch;
       phase = parsed.phase;
       noEventMinutes = parsed.noEventMinutes;
+      customMinutes = parsed.totalMinutesOverride ?? null;
     } else {
       mapLv = Number(mapLvInput);
       ch = Number(chInput);
@@ -569,7 +574,10 @@ export default function RoomPage() {
             </Link>
             <button
               className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 font-semibold hover:border-sky-400"
-              onClick={() => setShowSettingsModal(true)}
+              onClick={() => {
+                setDraftSettings(settings);
+                setShowSettingsModal(true);
+              }}
               type="button"
             >
               Settings
@@ -703,8 +711,8 @@ export default function RoomPage() {
                   placeholder="103 12 3 or 103 13 04:32 or 103 13 :5"
                 />
                 <p className="mt-1 text-xs text-slate-400">
-                  Format: Lv Ch Last. Lv 10-190, Ch 1-30, Last=1-4 phase, H:MM no-event, :X/:XX
-                  minute no-event.
+                  Format: Lv Ch Last. Lv 10-190, Ch 1-30, Last=1-4 or decimal phase
+                  (1-4.99), H:MM no-event, :X/:XX minute no-event.
                 </p>
               </div>
               <div>
@@ -978,7 +986,14 @@ function isValidLvCh(mapLv: number, ch: number): boolean {
 
 function parseQuickCommand(
   command: string,
-): { mapLv: number; ch: number; phase: Tracker["phase"]; noEventMinutes: number } | null {
+  settings: Settings,
+): {
+  mapLv: number;
+  ch: number;
+  phase: Tracker["phase"];
+  noEventMinutes: number;
+  totalMinutesOverride?: number;
+} | null {
   const parts = command.trim().split(/\s+/);
   if (parts.length !== 3) return null;
 
@@ -987,8 +1002,29 @@ function parseQuickCommand(
   if (!isValidLvCh(mapLv, ch)) return null;
 
   const last = parts[2];
-  if (/^[1-4]$/.test(last)) {
-    return { mapLv, ch, phase: last as Tracker["phase"], noEventMinutes: 0 };
+  const numericLast = Number(last);
+  if (!Number.isNaN(numericLast)) {
+    if (Number.isInteger(numericLast) && numericLast >= 1 && numericLast <= 4) {
+      return { mapLv, ch, phase: String(numericLast) as Tracker["phase"], noEventMinutes: 0 };
+    }
+
+    if (numericLast >= 1 && numericLast < 5) {
+      const phaseFloor = Math.floor(numericLast);
+      const fractional = numericLast - phaseFloor;
+      const totalOverride = calculateDecimalPhaseRemainingMinutes(
+        phaseFloor as 1 | 2 | 3 | 4,
+        fractional,
+        settings,
+      );
+      return {
+        mapLv,
+        ch,
+        phase: String(phaseFloor) as Tracker["phase"],
+        noEventMinutes: 0,
+        totalMinutesOverride: totalOverride,
+      };
+    }
+    return null;
   }
 
   if (/^:\d{1,2}$/.test(last)) {
@@ -1003,6 +1039,29 @@ function parseQuickCommand(
   }
 
   return null;
+}
+
+function calculateDecimalPhaseRemainingMinutes(
+  phaseFloor: 1 | 2 | 3 | 4,
+  fractional: number,
+  settings: Settings,
+): number {
+  const phaseDurations: Record<1 | 2 | 3 | 4, number> = {
+    1: settings.p12,
+    2: settings.p23,
+    3: settings.p34,
+    4: settings.p4on,
+  };
+
+  let total = 0;
+  const currentPhaseRemaining = phaseDurations[phaseFloor] * (1 - fractional);
+  total += currentPhaseRemaining;
+
+  for (let nextPhase = (phaseFloor + 1) as 2 | 3 | 4 | 5; nextPhase <= 4; nextPhase += 1) {
+    total += phaseDurations[nextPhase as 1 | 2 | 3 | 4];
+  }
+
+  return Math.max(0, total);
 }
 
 function parseFlexibleDuration(value: string): number | null {
