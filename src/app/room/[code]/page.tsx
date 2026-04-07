@@ -44,6 +44,7 @@ export default function RoomPage() {
   const [selectedPhase, setSelectedPhase] = useState<Tracker["phase"]>("No event");
   const [showAddModal, setShowAddModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [sortMode, setSortMode] = useState<"time" | "channel">("time");
   const [mapLvInput, setMapLvInput] = useState("");
   const [chInput, setChInput] = useState("");
   const [noEventTimeInput, setNoEventTimeInput] = useState("");
@@ -280,7 +281,7 @@ export default function RoomPage() {
   }, [room?.id, supabase]);
 
   const sortedRows = useMemo(() => {
-    return [...trackers]
+    const rows = [...trackers]
       .map((tracker) => {
         const remainingSeconds = Math.max(
           0,
@@ -293,9 +294,17 @@ export default function RoomPage() {
           tracker.noEventMinutes,
         );
         return { tracker, remainingSeconds, displayPhase };
-      })
-      .sort((a, b) => a.remainingSeconds - b.remainingSeconds);
-  }, [trackers, nowMs, settings]);
+      });
+
+    if (sortMode === "channel") {
+      return rows.sort((a, b) => {
+        if (a.tracker.ch !== b.tracker.ch) return a.tracker.ch - b.tracker.ch;
+        return a.remainingSeconds - b.remainingSeconds;
+      });
+    }
+
+    return rows.sort((a, b) => a.remainingSeconds - b.remainingSeconds);
+  }, [trackers, nowMs, settings, sortMode]);
 
   function openAddModal() {
     setMapLvInput("");
@@ -545,6 +554,31 @@ export default function RoomPage() {
           </span>
           <span className="text-base text-slate-300">Add Boss Tracking</span>
         </button>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setSortMode("time")}
+            className={`rounded-xl border px-3 py-1.5 text-sm font-semibold ${
+              sortMode === "time"
+                ? "border-sky-500 bg-sky-950/30 text-sky-300"
+                : "border-slate-700 bg-slate-900 text-slate-300"
+            }`}
+          >
+            Sort by Time
+          </button>
+          <button
+            type="button"
+            onClick={() => setSortMode("channel")}
+            className={`rounded-xl border px-3 py-1.5 text-sm font-semibold ${
+              sortMode === "channel"
+                ? "border-sky-500 bg-sky-950/30 text-sky-300"
+                : "border-slate-700 bg-slate-900 text-slate-300"
+            }`}
+          >
+            Sort by Ch
+          </button>
+        </div>
 
         <section className="flex flex-col gap-3">
           {sortedRows.length === 0 ? (
