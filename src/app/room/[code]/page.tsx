@@ -49,6 +49,7 @@ export default function RoomPage() {
   const [chInput, setChInput] = useState("");
   const [noEventTimeInput, setNoEventTimeInput] = useState("");
   const [quickCommandInput, setQuickCommandInput] = useState("");
+  const [customTimeInput, setCustomTimeInput] = useState("");
   const [draftSettings, setDraftSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [savingSettings, setSavingSettings] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -312,6 +313,7 @@ export default function RoomPage() {
     setChInput("");
     setNoEventTimeInput("");
     setQuickCommandInput("");
+    setCustomTimeInput("");
     setSelectedPhase("No event");
     setShowAddModal(true);
   }
@@ -324,6 +326,7 @@ export default function RoomPage() {
     let ch = 0;
     let phase: Tracker["phase"] = selectedPhase;
     let noEventMinutes = 0;
+    let customMinutes: number | null = null;
 
     if (quickCommandInput.trim()) {
       const parsed = parseQuickCommand(quickCommandInput);
@@ -359,7 +362,15 @@ export default function RoomPage() {
       }
     }
 
-    const totalMinutes = getTotalMinutes(phase, settings, noEventMinutes);
+    if (customTimeInput.trim()) {
+      customMinutes = parseFlexibleDuration(customTimeInput);
+      if (customMinutes === null) {
+        window.alert("Custom time invalid. Use 14, 1:14, or :5 format.");
+        return;
+      }
+    }
+
+    const totalMinutes = customMinutes ?? getTotalMinutes(phase, settings, noEventMinutes);
     const now = Date.now();
     const optimistic: Tracker = {
       id: `tmp_${now}`,
@@ -694,6 +705,21 @@ export default function RoomPage() {
               </div>
               <div>
                 <label className="mb-1 block text-sm text-slate-300">
+                  Custom time (optional, override auto-calc)
+                </label>
+                <input
+                  type="text"
+                  value={customTimeInput}
+                  onChange={(e) => setCustomTimeInput(e.target.value)}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2"
+                  placeholder="14 or 1:14 or :5"
+                />
+                <p className="mt-1 text-xs text-slate-400">
+                  If set, countdown uses this value directly and ignores phase timing calculation.
+                </p>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm text-slate-300">
                   Map / Lv (example: 101, 103, 89, 82)
                 </label>
                 <input
@@ -968,4 +994,17 @@ function parseQuickCommand(
   }
 
   return null;
+}
+
+function parseFlexibleDuration(value: string): number | null {
+  const raw = value.trim();
+  if (!raw) return null;
+
+  if (/^:\d{1,2}$/.test(raw)) {
+    const mins = Number(raw.slice(1));
+    if (Number.isNaN(mins) || mins < 0 || mins > 59) return null;
+    return mins;
+  }
+
+  return parseDurationToMinutes(raw);
 }
