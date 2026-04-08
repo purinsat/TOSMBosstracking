@@ -9,6 +9,7 @@ Realtime room-based boss tracking app built with Next.js + Tailwind + Supabase.
 - Realtime tracker sync across users in same room
 - Shared room settings (phase timings + alarm mute/volume)
 - Countdown sorting and color labels
+- Automatic room cleanup after 24h inactivity (hourly scheduled job)
 
 ## Local Setup
 

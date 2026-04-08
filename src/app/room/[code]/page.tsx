@@ -764,7 +764,8 @@ export default function RoomPage() {
                 />
                 <p className="mt-1 text-xs text-slate-400">
                   Format: Lv Ch Last. Lv 10-190, Ch 1-30, Last=1-4 or decimal phase
-                  (1-4.99), H:MM no-event, :X/:XX minute no-event.
+                  (1-4.99 where .3 means 30% completed in current phase), H:MM no-event, :X/:XX
+                  minute no-event.
                 </p>
               </div>
               <div>
