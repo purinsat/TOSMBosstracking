@@ -14,8 +14,6 @@ import {
 
 import {
   DEFAULT_SETTINGS,
-  PHASES,
-  formatDurationInput,
   formatMinutesSeconds,
   getColorClasses,
   getDynamicPhaseDisplay,
@@ -42,13 +40,9 @@ export default function RoomPage() {
   const [error, setError] = useState("");
   const [nowMs, setNowMs] = useState(0);
 
-  const [selectedPhase, setSelectedPhase] = useState<Tracker["phase"]>("No event");
   const [showAddModal, setShowAddModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [sortMode, setSortMode] = useState<"time" | "channel">("time");
-  const [mapLvInput, setMapLvInput] = useState("");
-  const [chInput, setChInput] = useState("");
-  const [noEventTimeInput, setNoEventTimeInput] = useState("");
   const [quickCommandInput, setQuickCommandInput] = useState("");
   const [customTimeInput, setCustomTimeInput] = useState("");
   const [draftSettings, setDraftSettings] = useState<Settings>(DEFAULT_SETTINGS);
@@ -347,12 +341,8 @@ export default function RoomPage() {
   }, [trackers, nowMs, settings, sortMode]);
 
   function openAddModal() {
-    setMapLvInput("");
-    setChInput("");
-    setNoEventTimeInput("");
     setQuickCommandInput("");
     setCustomTimeInput("");
-    setSelectedPhase("No event");
     setShowAddModal(true);
   }
 
@@ -362,9 +352,14 @@ export default function RoomPage() {
 
     let mapLv = 0;
     let ch = 0;
-    let phase: Tracker["phase"] = selectedPhase;
+    let phase: Tracker["phase"] = "No event";
     let noEventMinutes = 0;
     let customMinutes: number | null = null;
+
+    if (!customTimeInput.trim() && !quickCommandInput.trim()) {
+      window.alert("Please enter either Quick command or Custom command.");
+      return;
+    }
 
     if (customTimeInput.trim()) {
       const parsedCustom = parseCustomCountdownCommand(customTimeInput);
@@ -391,26 +386,6 @@ export default function RoomPage() {
       phase = parsed.phase;
       noEventMinutes = parsed.noEventMinutes;
       customMinutes = parsed.totalMinutesOverride ?? null;
-    } else {
-      mapLv = Number(mapLvInput);
-      ch = Number(chInput);
-      if (!isValidLvCh(mapLv, ch)) {
-        window.alert("Please enter valid values: Lv 10-190 and Ch 1-30.");
-        return;
-      }
-
-      if (selectedPhase === "No event") {
-        if (!noEventTimeInput) {
-          window.alert("Please enter No event duration (example: 14 or 1:14).");
-          return;
-        }
-        const parsedDuration = parseDurationToMinutes(noEventTimeInput);
-        if (parsedDuration === null) {
-          window.alert("Invalid format. Use minutes (14) or H:MM (1:14).");
-          return;
-        }
-        noEventMinutes = parsedDuration;
-      }
     }
 
     const totalMinutes = customMinutes ?? getTotalMinutes(phase, settings, noEventMinutes);
@@ -753,7 +728,7 @@ export default function RoomPage() {
             <form className="space-y-4" onSubmit={submitAddForm}>
               <div>
                 <label className="mb-1 block text-sm text-slate-300">
-                  Quick command (optional)
+                  Quick command
                 </label>
                 <input
                   type="text"
@@ -784,79 +759,6 @@ export default function RoomPage() {
                   directly sets countdown and ignores phase auto-calculation.
                 </p>
               </div>
-              <div>
-                <label className="mb-1 block text-sm text-slate-300">
-                  Map / Lv (example: 101, 103, 89, 82)
-                </label>
-                <input
-                  type="number"
-                  value={mapLvInput}
-                  onChange={(e) => setMapLvInput(e.target.value)}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2"
-                    min={10}
-                    max={190}
-                  required={!quickCommandInput.trim() && !customTimeInput.trim()}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm text-slate-300">
-                  Channel (1-30)
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  max={30}
-                  value={chInput}
-                  onChange={(e) => setChInput(e.target.value)}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2"
-                  required={!quickCommandInput.trim() && !customTimeInput.trim()}
-                />
-              </div>
-              <div>
-                <p className="mb-2 text-sm text-slate-300">Phase</p>
-                <div className="grid grid-cols-5 gap-2">
-                  {PHASES.map((phase) => (
-                    <button
-                      key={phase}
-                      type="button"
-                      onClick={() => setSelectedPhase(phase)}
-                      className={`rounded-lg border px-2 py-2 text-sm ${
-                        selectedPhase === phase
-                          ? "border-sky-400 text-sky-300"
-                          : "border-slate-700 text-slate-200"
-                      }`}
-                    >
-                      {phase}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {selectedPhase === "No event" && (
-                <div>
-                  <label className="mb-1 block text-sm text-slate-300">
-                    No event duration (MM or H:MM)
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="01:24"
-                    value={noEventTimeInput}
-                    onChange={(e) => setNoEventTimeInput(e.target.value)}
-                    onBlur={(e) =>
-                      setNoEventTimeInput(
-                        formatDurationInput(e.target.value) ?? e.target.value.trim(),
-                      )
-                    }
-                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2"
-                    required={
-                      selectedPhase === "No event" &&
-                      !quickCommandInput.trim() &&
-                      !customTimeInput.trim()
-                    }
-                  />
-                </div>
-              )}
 
               <div className="flex justify-end gap-2 pt-2">
                 <button
