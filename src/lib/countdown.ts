@@ -1,30 +1,40 @@
-import type { Phase, Settings } from "@/lib/types";
+import type { Phase, PhaseTimings, Settings } from "@/lib/types";
 
 export const PHASES: Phase[] = ["No event", "1", "2", "3", "4"];
 
 export const DEFAULT_SETTINGS: Settings = {
-  p12: 15,
-  p23: 11,
-  p34: 7,
-  p4on: 3,
+  presets: [
+    {
+      name: "Preset 1",
+      timings: { p12: 15, p23: 11, p34: 7, p4on: 3 },
+    },
+    {
+      name: "Preset 2",
+      timings: null,
+    },
+    {
+      name: "Preset 3",
+      timings: null,
+    },
+  ],
   soundVolume: 70,
   soundMuted: false,
 };
 
-export function getBaseCycleMinutes(settings: Settings): number {
-  return settings.p12 + settings.p23 + settings.p34 + settings.p4on;
+export function getBaseCycleMinutes(timings: PhaseTimings): number {
+  return timings.p12 + timings.p23 + timings.p34 + timings.p4on;
 }
 
 export function getTotalMinutes(
   phase: Phase,
-  settings: Settings,
+  timings: PhaseTimings,
   noEventMinutes: number,
 ): number {
-  if (phase === "1") return getBaseCycleMinutes(settings);
-  if (phase === "2") return settings.p23 + settings.p34 + settings.p4on;
-  if (phase === "3") return settings.p34 + settings.p4on;
-  if (phase === "4") return settings.p4on;
-  return noEventMinutes + getBaseCycleMinutes(settings);
+  if (phase === "1") return getBaseCycleMinutes(timings);
+  if (phase === "2") return timings.p23 + timings.p34 + timings.p4on;
+  if (phase === "3") return timings.p34 + timings.p4on;
+  if (phase === "4") return timings.p4on;
+  return noEventMinutes + getBaseCycleMinutes(timings);
 }
 
 export function parseDurationToMinutes(durationValue: string): number | null {
@@ -80,20 +90,20 @@ export function getColorClasses(remainingMinutes: number): string {
 export function getDynamicPhaseDisplay(
   startPhase: Phase,
   remainingSeconds: number,
-  settings: Settings,
+  timings: PhaseTimings,
   noEventMinutes: number,
 ): string {
   if (remainingSeconds <= 0) return "On";
 
   const remainingMinutes = remainingSeconds / 60;
-  const p2Start = settings.p23 + settings.p34 + settings.p4on;
-  const p3Start = settings.p34 + settings.p4on;
-  const p4Start = settings.p4on;
+  const p2Start = timings.p23 + timings.p34 + timings.p4on;
+  const p3Start = timings.p34 + timings.p4on;
+  const p4Start = timings.p4on;
 
   if (startPhase === "No event") {
-    const cycleStart = getBaseCycleMinutes(settings);
+    const cycleStart = getBaseCycleMinutes(timings);
     if (remainingMinutes > cycleStart) return "No event";
-    return getDynamicPhaseDisplay("1", remainingSeconds, settings, noEventMinutes);
+    return getDynamicPhaseDisplay("1", remainingSeconds, timings, noEventMinutes);
   }
 
   if (startPhase === "1") {

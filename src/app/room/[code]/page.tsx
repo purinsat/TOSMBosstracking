@@ -21,7 +21,26 @@ import {
   parseDurationToMinutes,
 } from "@/lib/countdown";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import type { DbRoom, DbRoomSettings, DbTracker, Room, Settings, Tracker } from "@/lib/types";
+import type {
+  DbRoom,
+  DbRoomSettings,
+  DbTracker,
+  PhaseTimings,
+  Room,
+  Settings,
+  Tracker,
+} from "@/lib/types";
+
+const TRACKERS_SELECT =
+  "id, room_id, map_lv, ch, phase, no_event_minutes, preset_slot, target_at, created_at";
+const ROOM_SETTINGS_SELECT =
+  "room_id, p12, p23, p34, p4on, preset1_name, preset2_name, preset2_p12, preset2_p23, preset2_p34, preset2_p4on, preset3_name, preset3_p12, preset3_p23, preset3_p34, preset3_p4on, sound_volume, sound_muted, updated_at";
+type PresetTimingInputs = {
+  p12: string;
+  p23: string;
+  p34: string;
+  p4on: string;
+};
 
 export default function RoomPage() {
   const isHydrated = useSyncExternalStore(
@@ -46,6 +65,9 @@ export default function RoomPage() {
   const [quickCommandInput, setQuickCommandInput] = useState("");
   const [customTimeInput, setCustomTimeInput] = useState("");
   const [draftSettings, setDraftSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [draftPresetInputs, setDraftPresetInputs] = useState<[PresetTimingInputs, PresetTimingInputs, PresetTimingInputs]>(
+    toPresetTimingInputs(DEFAULT_SETTINGS),
+  );
   const [savingSettings, setSavingSettings] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
   const fiveMinuteAlertedTrackerIdsRef = useRef<Set<string>>(new Set());
@@ -53,7 +75,7 @@ export default function RoomPage() {
   const fetchOrCreateRoomSettings = useCallback(async (roomId: string): Promise<Settings | null> => {
     const { data, error: readError } = await supabase
       .from("room_settings")
-      .select("room_id, p12, p23, p34, p4on, sound_volume, sound_muted, updated_at")
+      .select(ROOM_SETTINGS_SELECT)
       .eq("room_id", roomId)
       .maybeSingle<DbRoomSettings>();
 
@@ -68,16 +90,27 @@ export default function RoomPage() {
       .upsert(
         {
           room_id: roomId,
-          p12: DEFAULT_SETTINGS.p12,
-          p23: DEFAULT_SETTINGS.p23,
-          p34: DEFAULT_SETTINGS.p34,
-          p4on: DEFAULT_SETTINGS.p4on,
+          p12: DEFAULT_SETTINGS.presets[0].timings?.p12 ?? 15,
+          p23: DEFAULT_SETTINGS.presets[0].timings?.p23 ?? 11,
+          p34: DEFAULT_SETTINGS.presets[0].timings?.p34 ?? 7,
+          p4on: DEFAULT_SETTINGS.presets[0].timings?.p4on ?? 3,
+          preset1_name: DEFAULT_SETTINGS.presets[0].name,
+          preset2_name: DEFAULT_SETTINGS.presets[1].name || null,
+          preset2_p12: null,
+          preset2_p23: null,
+          preset2_p34: null,
+          preset2_p4on: null,
+          preset3_name: DEFAULT_SETTINGS.presets[2].name || null,
+          preset3_p12: null,
+          preset3_p23: null,
+          preset3_p34: null,
+          preset3_p4on: null,
           sound_volume: DEFAULT_SETTINGS.soundVolume,
           sound_muted: DEFAULT_SETTINGS.soundMuted,
         },
         { onConflict: "room_id" },
       )
-      .select("room_id, p12, p23, p34, p4on, sound_volume, sound_muted, updated_at")
+      .select(ROOM_SETTINGS_SELECT)
       .single<DbRoomSettings>();
 
     if (createError) {
@@ -128,7 +161,7 @@ export default function RoomPage() {
         fetchOrCreateRoomSettings(mappedRoom.id),
         supabase
           .from("trackers")
-          .select("id, room_id, map_lv, ch, phase, no_event_minutes, target_at, created_at")
+          .select(TRACKERS_SELECT)
           .eq("room_id", mappedRoom.id)
           .gt("target_at", nowIso)
           .order("target_at", { ascending: true })
@@ -140,6 +173,7 @@ export default function RoomPage() {
       if (nextSettings) {
         setSettings(nextSettings);
         setDraftSettings(nextSettings);
+        setDraftPresetInputs(toPresetTimingInputs(nextSettings));
       }
 
       if (trackersResponse.error) {
@@ -174,7 +208,7 @@ export default function RoomPage() {
           const nowIso = new Date().toISOString();
           const { data } = await supabase
             .from("trackers")
-            .select("id, room_id, map_lv, ch, phase, no_event_minutes, target_at, created_at")
+            .select(TRACKERS_SELECT)
             .eq("room_id", room.id)
             .gt("target_at", nowIso)
             .order("target_at", { ascending: true })
@@ -196,6 +230,7 @@ export default function RoomPage() {
             setSettings(nextSettings);
             if (!showSettingsModal) {
               setDraftSettings(nextSettings);
+              setDraftPresetInputs(toPresetTimingInputs(nextSettings));
             }
           }
         },
@@ -278,14 +313,14 @@ export default function RoomPage() {
       const [trackersResponse, settingsResponse] = await Promise.all([
         supabase
           .from("trackers")
-          .select("id, room_id, map_lv, ch, phase, no_event_minutes, target_at, created_at")
+          .select(TRACKERS_SELECT)
           .eq("room_id", room.id)
           .gt("target_at", nowIso)
           .order("target_at", { ascending: true })
           .returns<DbTracker[]>(),
         supabase
           .from("room_settings")
-          .select("room_id, p12, p23, p34, p4on, sound_volume, sound_muted, updated_at")
+          .select(ROOM_SETTINGS_SELECT)
           .eq("room_id", room.id)
           .maybeSingle<DbRoomSettings>(),
       ]);
@@ -299,6 +334,7 @@ export default function RoomPage() {
         setSettings(nextSettings);
         if (!showSettingsModal) {
           setDraftSettings(nextSettings);
+          setDraftPresetInputs(toPresetTimingInputs(nextSettings));
         }
       } else if (!settingsResponse.error && !settingsResponse.data) {
         const nextSettings = await fetchOrCreateRoomSettings(room.id);
@@ -306,6 +342,7 @@ export default function RoomPage() {
           setSettings(nextSettings);
           if (!showSettingsModal) {
             setDraftSettings(nextSettings);
+            setDraftPresetInputs(toPresetTimingInputs(nextSettings));
           }
         }
       }
@@ -321,12 +358,15 @@ export default function RoomPage() {
           0,
           Math.floor((new Date(tracker.targetAt).getTime() - nowMs) / 1000),
         );
-        const displayPhase = getDynamicPhaseDisplay(
-          tracker.phase,
-          remainingSeconds,
-          settings,
-          tracker.noEventMinutes,
-        );
+        const presetTimings = tracker.presetSlot ? getPresetTimings(settings, tracker.presetSlot) : null;
+        const displayPhase = presetTimings
+          ? getDynamicPhaseDisplayWithDecimal(
+              tracker.phase,
+              remainingSeconds,
+              presetTimings,
+              tracker.noEventMinutes,
+            )
+          : "N/A";
         return { tracker, remainingSeconds, displayPhase };
       });
 
@@ -355,6 +395,7 @@ export default function RoomPage() {
     let phase: Tracker["phase"] = "No event";
     let noEventMinutes = 0;
     let customMinutes: number | null = null;
+    let presetSlot: 1 | 2 | 3 | null = 1;
 
     if (!customTimeInput.trim() && !quickCommandInput.trim()) {
       window.alert("Please enter either Quick command or Custom command.");
@@ -365,19 +406,20 @@ export default function RoomPage() {
       const parsedCustom = parseCustomCountdownCommand(customTimeInput);
       if (!parsedCustom) {
         window.alert(
-          "Custom command invalid. Use: '103 12 5', '103 12 2:12', or '103 12 :5'.",
+          "Custom command invalid. Use: '103 12 5', '103 12 2:12', '103 12 :5', or add preset: '103 12 :30 2'.",
         );
         return;
       }
       mapLv = parsedCustom.mapLv;
       ch = parsedCustom.ch;
-      phase = "No event";
+      presetSlot = parsedCustom.presetSlot;
+      phase = parsedCustom.presetSlot ? "1" : "No event";
       customMinutes = parsedCustom.countdownMinutes;
     } else if (quickCommandInput.trim()) {
       const parsed = parseQuickCommand(quickCommandInput, settings);
       if (!parsed) {
         window.alert(
-          "Quick command invalid. Example: '103 12 3', '103 12 2.75', '103 13 04:32', or '103 13 :5'.",
+          "Quick command invalid. Example: '103 12 3', '103 12 2.75 2', '103 13 04:32', or '103 13 :5 3'.",
         );
         return;
       }
@@ -386,9 +428,16 @@ export default function RoomPage() {
       phase = parsed.phase;
       noEventMinutes = parsed.noEventMinutes;
       customMinutes = parsed.totalMinutesOverride ?? null;
+      presetSlot = parsed.presetSlot;
     }
 
-    const totalMinutes = customMinutes ?? getTotalMinutes(phase, settings, noEventMinutes);
+    const presetTimings = presetSlot ? getPresetTimings(settings, presetSlot) : null;
+    if (presetSlot && !presetTimings) {
+      window.alert(`Preset ${presetSlot} is blank. Please set timings in Settings first.`);
+      return;
+    }
+
+    const totalMinutes = customMinutes ?? getTotalMinutes(phase, presetTimings!, noEventMinutes);
     const now = Date.now();
     const optimistic: Tracker = {
       id: `tmp_${now}`,
@@ -397,6 +446,7 @@ export default function RoomPage() {
       ch,
       phase,
       noEventMinutes,
+      presetSlot,
       targetAt: new Date(now + totalMinutes * 60000).toISOString(),
       createdAt: new Date(now).toISOString(),
     };
@@ -412,9 +462,10 @@ export default function RoomPage() {
         ch,
         phase,
         no_event_minutes: noEventMinutes,
+        preset_slot: presetSlot,
         target_at: optimistic.targetAt,
       })
-      .select("id, room_id, map_lv, ch, phase, no_event_minutes, target_at, created_at")
+      .select(TRACKERS_SELECT)
       .single<DbTracker>();
 
     if (insertError || !data) {
@@ -453,22 +504,14 @@ export default function RoomPage() {
     setError("");
 
     const previous = settings;
-    setSettings(draftSettings);
+    const normalizedDraftSettings = applyPresetInputsToSettings(draftSettings, draftPresetInputs);
+    setSettings(normalizedDraftSettings);
+    setDraftSettings(normalizedDraftSettings);
+    setDraftPresetInputs(toPresetTimingInputs(normalizedDraftSettings));
 
     const { error: updateError } = await supabase
       .from("room_settings")
-      .upsert(
-        {
-          room_id: room.id,
-          p12: draftSettings.p12,
-          p23: draftSettings.p23,
-          p34: draftSettings.p34,
-          p4on: draftSettings.p4on,
-          sound_volume: draftSettings.soundVolume,
-          sound_muted: draftSettings.soundMuted,
-        },
-        { onConflict: "room_id" },
-      )
+      .upsert(toRoomSettingsPayload(room.id, normalizedDraftSettings), { onConflict: "room_id" })
       .select("room_id")
       .single()
       .then(({ error }) => ({ error }));
@@ -476,6 +519,7 @@ export default function RoomPage() {
     if (updateError) {
       setSettings(previous);
       setDraftSettings(previous);
+      setDraftPresetInputs(toPresetTimingInputs(previous));
       setError(updateError.message);
     } else {
       setShowSettingsModal(false);
@@ -494,18 +538,7 @@ export default function RoomPage() {
 
     const { error: updateError } = await supabase
       .from("room_settings")
-      .upsert(
-        {
-          room_id: room.id,
-          p12: merged.p12,
-          p23: merged.p23,
-          p34: merged.p34,
-          p4on: merged.p4on,
-          sound_volume: merged.soundVolume,
-          sound_muted: merged.soundMuted,
-        },
-        { onConflict: "room_id" },
-      )
+      .upsert(toRoomSettingsPayload(room.id, merged), { onConflict: "room_id" })
       .select("room_id")
       .single()
       .then(({ error }) => ({ error }));
@@ -521,10 +554,25 @@ export default function RoomPage() {
     }
   }
 
-  function updateDraftNumber(key: "p12" | "p23" | "p34" | "p4on", value: string) {
-    const numeric = Number(value);
-    if (Number.isNaN(numeric) || numeric < 0) return;
-    setDraftSettings((prev) => ({ ...prev, [key]: numeric }));
+  function updateDraftPresetName(slot: 1 | 2 | 3, value: string) {
+    setDraftSettings((prev) => {
+      const presets = [...prev.presets] as Settings["presets"];
+      presets[slot - 1] = { ...presets[slot - 1], name: value };
+      return { ...prev, presets };
+    });
+  }
+
+  function updateDraftPresetNumber(slot: 1 | 2 | 3, key: keyof PhaseTimings, value: string) {
+    if (value.trim() !== "") {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric) || numeric < 0) return;
+    }
+
+    setDraftPresetInputs((prev) => {
+      const next = [...prev] as [PresetTimingInputs, PresetTimingInputs, PresetTimingInputs];
+      next[slot - 1] = { ...next[slot - 1], [key]: value };
+      return next;
+    });
   }
 
   if (!isHydrated || loading) {
@@ -603,6 +651,7 @@ export default function RoomPage() {
               className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 font-semibold hover:border-sky-400"
               onClick={() => {
                 setDraftSettings(settings);
+                setDraftPresetInputs(toPresetTimingInputs(settings));
                 setShowSettingsModal(true);
               }}
               type="button"
@@ -669,14 +718,23 @@ export default function RoomPage() {
                   className={`flex flex-wrap items-center justify-between gap-2 rounded-full border-2 px-5 py-4 ${color}`}
                 >
                   <div className="flex items-center gap-2">
-                    <span className="rounded-full border border-slate-600 bg-slate-900 px-3 py-1.5 text-base font-semibold uppercase tracking-wide text-slate-200">
+                    <span
+                      className={`rounded-full border bg-slate-900 px-3 py-1.5 text-base font-semibold uppercase tracking-wide text-slate-200 ${getMapBadgeClass(
+                        tracker.mapLv,
+                      )}`}
+                    >
                       Lv.{tracker.mapLv}
                     </span>
-                    <span className="rounded-full border border-slate-600 bg-slate-900 px-3 py-1.5 text-base font-semibold uppercase tracking-wide text-slate-200">
+                    <span
+                      className={`rounded-full border bg-slate-900 px-3 py-1.5 text-base font-semibold uppercase tracking-wide text-slate-200 ${getMapBadgeClass(
+                        tracker.mapLv,
+                      )}`}
+                    >
                       Ch.{tracker.ch}
                     </span>
                     <span className="rounded-full border border-slate-600 bg-slate-900 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-slate-300">
                       {displayPhase}
+                      {tracker.presetSlot ? ` • P${tracker.presetSlot}` : ""}
                     </span>
                   </div>
                   <p className="text-2xl font-bold tracking-wide text-sky-100">
@@ -735,12 +793,12 @@ export default function RoomPage() {
                   value={quickCommandInput}
                   onChange={(e) => setQuickCommandInput(e.target.value)}
                   className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2"
-                  placeholder="103 12 3 or 103 13 04:32 or 103 13 :5"
+                  placeholder="103 12 3 or 103 12 2.5 1 or 103 13 :5 2"
                 />
                 <p className="mt-1 text-xs text-slate-400">
-                  Format: Lv Ch Last. Lv 10-190, Ch 1-30, Last=1-4 or decimal phase
-                  (1-4.99 where .3 means 30% completed in current phase), H:MM no-event, :X/:XX
-                  minute no-event.
+                  Quick: <code>Lv Ch Last [Preset]</code>. Example: <code>103 2 2.5 1</code>.
+                  Last can be 1-4, decimal phase (2.5), H:MM, or :MM. Preset is optional (1-3),
+                  default is 1.
                 </p>
               </div>
               <div>
@@ -752,11 +810,12 @@ export default function RoomPage() {
                   value={customTimeInput}
                   onChange={(e) => setCustomTimeInput(e.target.value)}
                   className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2"
-                  placeholder="103 12 5 or 103 12 2:12 or 103 12 :5"
+                  placeholder="103 12 5 or 103 12 :30 2"
                 />
                 <p className="mt-1 text-xs text-slate-400">
-                  Format: Lv Ch Duration. Duration can be minutes, H:MM, or :X/:XX. This
-                  directly sets countdown and ignores phase auto-calculation.
+                  Custom: <code>Lv Ch Duration [Preset]</code>. Example: <code>103 2 :30 2</code>{" "}
+                  or <code>103 2 :30</code>. Duration sets the countdown directly. Preset is
+                  optional; without preset, phase shows N/A.
                 </p>
               </div>
 
@@ -782,49 +841,51 @@ export default function RoomPage() {
 
       {showSettingsModal && (
         <div className="fixed inset-0 z-20 flex items-center justify-center bg-slate-950/85 p-4">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 p-5">
-            <h2 className="mb-4 text-xl font-bold">Phase Settings (Minutes)</h2>
-            <div className="space-y-3">
-              <label className="block text-sm text-slate-300">
-                <span className="mb-1 block">Phase 1 -{">"} 2</span>
-                <input
-                  type="number"
-                  min={0}
-                  value={draftSettings.p12}
-                  onChange={(e) => updateDraftNumber("p12", e.target.value)}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2"
-                />
-              </label>
-              <label className="block text-sm text-slate-300">
-                <span className="mb-1 block">Phase 2 -{">"} 3</span>
-                <input
-                  type="number"
-                  min={0}
-                  value={draftSettings.p23}
-                  onChange={(e) => updateDraftNumber("p23", e.target.value)}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2"
-                />
-              </label>
-              <label className="block text-sm text-slate-300">
-                <span className="mb-1 block">Phase 3 -{">"} 4</span>
-                <input
-                  type="number"
-                  min={0}
-                  value={draftSettings.p34}
-                  onChange={(e) => updateDraftNumber("p34", e.target.value)}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2"
-                />
-              </label>
-              <label className="block text-sm text-slate-300">
-                <span className="mb-1 block">Phase 4 -{">"} On (spawn)</span>
-                <input
-                  type="number"
-                  min={0}
-                  value={draftSettings.p4on}
-                  onChange={(e) => updateDraftNumber("p4on", e.target.value)}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2"
-                />
-              </label>
+          <div className="w-full max-w-3xl rounded-2xl border border-slate-700 bg-slate-900 p-5">
+            <h2 className="mb-4 text-xl font-bold">Phase Presets</h2>
+            <div className="grid gap-3 md:grid-cols-3">
+              {[1, 2, 3].map((slot) => {
+                const preset = draftSettings.presets[slot - 1];
+                const timingInputs = draftPresetInputs[slot - 1];
+                return (
+                  <section key={slot} className="rounded-xl border border-slate-700 bg-slate-950/60 p-3">
+                    <label className="block text-sm text-slate-300">
+                      <span className="mb-1 block">Preset {slot} Name</span>
+                      <input
+                        type="text"
+                        value={preset.name}
+                        onChange={(e) => updateDraftPresetName(slot as 1 | 2 | 3, e.target.value)}
+                        className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2"
+                        placeholder={`Preset ${slot}`}
+                      />
+                    </label>
+                    <div className="mt-3 space-y-2">
+                      {(
+                        [
+                          ["p12", "Phase 1 -> 2"],
+                          ["p23", "Phase 2 -> 3"],
+                          ["p34", "Phase 3 -> 4"],
+                          ["p4on", "Phase 4 -> On"],
+                        ] as const
+                      ).map(([key, label]) => (
+                        <label key={key} className="block text-sm text-slate-300">
+                          <span className="mb-1 block">{label}</span>
+                          <input
+                            type="number"
+                            min={0}
+                            value={timingInputs[key]}
+                            onChange={(e) =>
+                              updateDraftPresetNumber(slot as 1 | 2 | 3, key, e.target.value)
+                            }
+                            className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2"
+                            placeholder={slot === 1 ? "0" : "Blank"}
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </section>
+                );
+              })}
             </div>
             <div className="mt-5 flex justify-end gap-2">
               <button
@@ -832,6 +893,7 @@ export default function RoomPage() {
                 className="rounded-xl border border-slate-700 px-4 py-2"
                 onClick={() => {
                   setDraftSettings(settings);
+                  setDraftPresetInputs(toPresetTimingInputs(settings));
                   setShowSettingsModal(false);
                 }}
               >
@@ -864,10 +926,49 @@ function mapRoom(room: DbRoom): Room {
 
 function mapSettings(settings: DbRoomSettings): Settings {
   return {
-    p12: settings.p12,
-    p23: settings.p23,
-    p34: settings.p34,
-    p4on: settings.p4on,
+    presets: [
+      {
+        name: settings.preset1_name || "Preset 1",
+        timings: {
+          p12: settings.p12,
+          p23: settings.p23,
+          p34: settings.p34,
+          p4on: settings.p4on,
+        },
+      },
+      {
+        name: settings.preset2_name || "Preset 2",
+        timings: isCompleteTimingSet(
+          settings.preset2_p12,
+          settings.preset2_p23,
+          settings.preset2_p34,
+          settings.preset2_p4on,
+        )
+          ? {
+              p12: settings.preset2_p12!,
+              p23: settings.preset2_p23!,
+              p34: settings.preset2_p34!,
+              p4on: settings.preset2_p4on!,
+            }
+          : null,
+      },
+      {
+        name: settings.preset3_name || "Preset 3",
+        timings: isCompleteTimingSet(
+          settings.preset3_p12,
+          settings.preset3_p23,
+          settings.preset3_p34,
+          settings.preset3_p4on,
+        )
+          ? {
+              p12: settings.preset3_p12!,
+              p23: settings.preset3_p23!,
+              p34: settings.preset3_p34!,
+              p4on: settings.preset3_p4on!,
+            }
+          : null,
+      },
+    ],
     soundVolume: settings.sound_volume,
     soundMuted: settings.sound_muted,
   };
@@ -881,9 +982,134 @@ function mapTracker(row: DbTracker): Tracker {
     ch: row.ch,
     phase: row.phase,
     noEventMinutes: row.no_event_minutes,
+    presetSlot: row.preset_slot,
     targetAt: row.target_at,
     createdAt: row.created_at,
   };
+}
+
+function isCompleteTimingSet(
+  p12: number | null,
+  p23: number | null,
+  p34: number | null,
+  p4on: number | null,
+): boolean {
+  return p12 !== null && p23 !== null && p34 !== null && p4on !== null;
+}
+
+function getPresetTimings(settings: Settings, presetSlot: 1 | 2 | 3): PhaseTimings | null {
+  return settings.presets[presetSlot - 1]?.timings ?? null;
+}
+
+function toPresetTimingInputs(
+  settings: Settings,
+): [PresetTimingInputs, PresetTimingInputs, PresetTimingInputs] {
+  return settings.presets.map((preset) => ({
+    p12: preset.timings?.p12 != null ? String(preset.timings.p12) : "",
+    p23: preset.timings?.p23 != null ? String(preset.timings.p23) : "",
+    p34: preset.timings?.p34 != null ? String(preset.timings.p34) : "",
+    p4on: preset.timings?.p4on != null ? String(preset.timings.p4on) : "",
+  })) as [PresetTimingInputs, PresetTimingInputs, PresetTimingInputs];
+}
+
+function applyPresetInputsToSettings(
+  settings: Settings,
+  inputs: [PresetTimingInputs, PresetTimingInputs, PresetTimingInputs],
+): Settings {
+  const presets = settings.presets.map((preset, idx) => ({
+    ...preset,
+    timings: {
+      p12: parsePresetInputValue(inputs[idx].p12),
+      p23: parsePresetInputValue(inputs[idx].p23),
+      p34: parsePresetInputValue(inputs[idx].p34),
+      p4on: parsePresetInputValue(inputs[idx].p4on),
+    },
+  })) as Settings["presets"];
+
+  return { ...settings, presets };
+}
+
+function parsePresetInputValue(raw: string): number {
+  if (raw.trim() === "") return 0;
+  const numeric = Number(raw);
+  if (!Number.isFinite(numeric) || numeric < 0) return 0;
+  return numeric;
+}
+
+function getDynamicPhaseDisplayWithDecimal(
+  startPhase: Tracker["phase"],
+  remainingSeconds: number,
+  timings: PhaseTimings,
+  noEventMinutes: number,
+): string {
+  const base = getDynamicPhaseDisplay(startPhase, remainingSeconds, timings, noEventMinutes);
+  if (!["1", "2", "3", "4"].includes(base)) return base;
+
+  const remainingMinutes = remainingSeconds / 60;
+  const p2Start = timings.p23 + timings.p34 + timings.p4on;
+  const p3Start = timings.p34 + timings.p4on;
+  const p4Start = timings.p4on;
+
+  let phaseRemaining = 0;
+  let phaseDuration = 0;
+  if (base === "1") {
+    phaseRemaining = remainingMinutes - p2Start;
+    phaseDuration = timings.p12;
+  } else if (base === "2") {
+    phaseRemaining = remainingMinutes - p3Start;
+    phaseDuration = timings.p23;
+  } else if (base === "3") {
+    phaseRemaining = remainingMinutes - p4Start;
+    phaseDuration = timings.p34;
+  } else {
+    phaseRemaining = remainingMinutes;
+    phaseDuration = timings.p4on;
+  }
+
+  if (phaseDuration <= 0) return `${base}.0`;
+  const clamped = Math.min(phaseDuration, Math.max(0, phaseRemaining));
+  const completed = 1 - clamped / phaseDuration;
+  const decimal = Math.min(9, Math.max(0, Math.floor(completed * 10)));
+  return `${base}.${decimal}`;
+}
+
+function toRoomSettingsPayload(roomId: string, settings: Settings) {
+  const preset1 = settings.presets[0];
+  const preset2 = settings.presets[1];
+  const preset3 = settings.presets[2];
+
+  return {
+    room_id: roomId,
+    p12: preset1.timings?.p12 ?? 15,
+    p23: preset1.timings?.p23 ?? 11,
+    p34: preset1.timings?.p34 ?? 7,
+    p4on: preset1.timings?.p4on ?? 3,
+    preset1_name: preset1.name || "Preset 1",
+    preset2_name: preset2.name || null,
+    preset2_p12: preset2.timings?.p12 ?? null,
+    preset2_p23: preset2.timings?.p23 ?? null,
+    preset2_p34: preset2.timings?.p34 ?? null,
+    preset2_p4on: preset2.timings?.p4on ?? null,
+    preset3_name: preset3.name || null,
+    preset3_p12: preset3.timings?.p12 ?? null,
+    preset3_p23: preset3.timings?.p23 ?? null,
+    preset3_p34: preset3.timings?.p34 ?? null,
+    preset3_p4on: preset3.timings?.p4on ?? null,
+    sound_volume: settings.soundVolume,
+    sound_muted: settings.soundMuted,
+  };
+}
+
+function getMapBadgeClass(mapLv: number): string {
+  const palette = [
+    "border-cyan-400 text-cyan-200",
+    "border-emerald-400 text-emerald-200",
+    "border-violet-400 text-violet-200",
+    "border-amber-400 text-amber-200",
+    "border-pink-400 text-pink-200",
+    "border-orange-400 text-orange-200",
+  ];
+  return palette[Math.abs(mapLv) % palette.length];
 }
 
 async function ensureAudioContextReady(
@@ -947,20 +1173,32 @@ function parseQuickCommand(
   ch: number;
   phase: Tracker["phase"];
   noEventMinutes: number;
+  presetSlot: 1 | 2 | 3;
   totalMinutesOverride?: number;
 } | null {
   const parts = command.trim().split(/\s+/);
-  if (parts.length !== 3) return null;
+  if (parts.length !== 3 && parts.length !== 4) return null;
 
   const mapLv = Number(parts[0]);
   const ch = Number(parts[1]);
   if (!isValidLvCh(mapLv, ch)) return null;
+  const parsedPresetSlot = parsePresetSlot(parts[3]);
+  if (parts.length === 4 && parsedPresetSlot === null) return null;
+  const presetSlot = parsedPresetSlot ?? 1;
+  const presetTimings = getPresetTimings(settings, presetSlot);
+  if (!presetTimings) return null;
 
   const last = parts[2];
   const numericLast = Number(last);
   if (!Number.isNaN(numericLast)) {
     if (Number.isInteger(numericLast) && numericLast >= 1 && numericLast <= 4) {
-      return { mapLv, ch, phase: String(numericLast) as Tracker["phase"], noEventMinutes: 0 };
+      return {
+        mapLv,
+        ch,
+        phase: String(numericLast) as Tracker["phase"],
+        noEventMinutes: 0,
+        presetSlot,
+      };
     }
 
     if (numericLast >= 1 && numericLast < 5) {
@@ -969,13 +1207,14 @@ function parseQuickCommand(
       const totalOverride = calculateDecimalPhaseRemainingMinutes(
         phaseFloor as 1 | 2 | 3 | 4,
         fractional,
-        settings,
+        presetTimings,
       );
       return {
         mapLv,
         ch,
         phase: String(phaseFloor) as Tracker["phase"],
         noEventMinutes: 0,
+        presetSlot,
         totalMinutesOverride: totalOverride,
       };
     }
@@ -985,12 +1224,12 @@ function parseQuickCommand(
   if (/^:\d{1,2}$/.test(last)) {
     const minuteOnly = Number(last.slice(1));
     if (Number.isNaN(minuteOnly) || minuteOnly < 0 || minuteOnly > 59) return null;
-    return { mapLv, ch, phase: "No event", noEventMinutes: minuteOnly };
+    return { mapLv, ch, phase: "No event", noEventMinutes: minuteOnly, presetSlot };
   }
 
   const parsedDuration = parseDurationToMinutes(last);
   if (parsedDuration !== null) {
-    return { mapLv, ch, phase: "No event", noEventMinutes: parsedDuration };
+    return { mapLv, ch, phase: "No event", noEventMinutes: parsedDuration, presetSlot };
   }
 
   return null;
@@ -999,13 +1238,13 @@ function parseQuickCommand(
 function calculateDecimalPhaseRemainingMinutes(
   phaseFloor: 1 | 2 | 3 | 4,
   fractional: number,
-  settings: Settings,
+  timings: PhaseTimings,
 ): number {
   const phaseDurations: Record<1 | 2 | 3 | 4, number> = {
-    1: settings.p12,
-    2: settings.p23,
-    3: settings.p34,
-    4: settings.p4on,
+    1: timings.p12,
+    2: timings.p23,
+    3: timings.p34,
+    4: timings.p4on,
   };
 
   let total = 0;
@@ -1034,9 +1273,9 @@ function parseFlexibleDuration(value: string): number | null {
 
 function parseCustomCountdownCommand(
   command: string,
-): { mapLv: number; ch: number; countdownMinutes: number } | null {
+): { mapLv: number; ch: number; countdownMinutes: number; presetSlot: 1 | 2 | 3 | null } | null {
   const parts = command.trim().split(/\s+/);
-  if (parts.length !== 3) return null;
+  if (parts.length !== 3 && parts.length !== 4) return null;
 
   const mapLv = Number(parts[0]);
   const ch = Number(parts[1]);
@@ -1044,6 +1283,15 @@ function parseCustomCountdownCommand(
 
   const countdownMinutes = parseFlexibleDuration(parts[2]);
   if (countdownMinutes === null) return null;
+  const presetSlot = parsePresetSlot(parts[3]);
+  if (parts.length === 4 && presetSlot === null) return null;
 
-  return { mapLv, ch, countdownMinutes };
+  return { mapLv, ch, countdownMinutes, presetSlot };
+}
+
+function parsePresetSlot(raw: string | undefined): 1 | 2 | 3 | null {
+  if (!raw) return null;
+  const numeric = Number(raw);
+  if (numeric === 1 || numeric === 2 || numeric === 3) return numeric;
+  return null;
 }
