@@ -26,6 +26,7 @@ export type Tracker = {
   phase: Phase;
   noEventMinutes: number;
   presetSlot: 1 | 2 | 3 | null;
+  isCustomTime: boolean;
   targetAt: string;
   createdAt: string;
 };
@@ -52,6 +53,7 @@ export type DbTracker = {
   phase: Phase;
   no_event_minutes: number;
   preset_slot: 1 | 2 | 3 | null;
+  is_custom_time: boolean | null;
   target_at: string;
   created_at: string;
 };

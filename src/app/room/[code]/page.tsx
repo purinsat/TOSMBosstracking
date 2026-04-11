@@ -32,7 +32,7 @@ import type {
 } from "@/lib/types";
 
 const TRACKERS_SELECT =
-  "id, room_id, map_lv, ch, phase, no_event_minutes, preset_slot, target_at, created_at";
+  "id, room_id, map_lv, ch, phase, no_event_minutes, preset_slot, is_custom_time, target_at, created_at";
 const ROOM_SETTINGS_SELECT =
   "room_id, p12, p23, p34, p4on, preset1_name, preset2_name, preset2_p12, preset2_p23, preset2_p34, preset2_p4on, preset3_name, preset3_p12, preset3_p23, preset3_p34, preset3_p4on, sound_volume, sound_muted, updated_at";
 type PresetTimingInputs = {
@@ -396,6 +396,7 @@ export default function RoomPage() {
     let noEventMinutes = 0;
     let customMinutes: number | null = null;
     let presetSlot: 1 | 2 | 3 | null = 1;
+    let isCustomTime = false;
 
     if (!customTimeInput.trim() && !quickCommandInput.trim()) {
       window.alert("Please enter either Quick command or Custom command.");
@@ -415,6 +416,7 @@ export default function RoomPage() {
       presetSlot = parsedCustom.presetSlot;
       phase = parsedCustom.presetSlot ? "1" : "No event";
       customMinutes = parsedCustom.countdownMinutes;
+      isCustomTime = true;
     } else if (quickCommandInput.trim()) {
       const parsed = parseQuickCommand(quickCommandInput, settings);
       if (!parsed) {
@@ -447,6 +449,7 @@ export default function RoomPage() {
       phase,
       noEventMinutes,
       presetSlot,
+      isCustomTime,
       targetAt: new Date(now + totalMinutes * 60000).toISOString(),
       createdAt: new Date(now).toISOString(),
     };
@@ -463,6 +466,7 @@ export default function RoomPage() {
         phase,
         no_event_minutes: noEventMinutes,
         preset_slot: presetSlot,
+        is_custom_time: isCustomTime,
         target_at: optimistic.targetAt,
       })
       .select(TRACKERS_SELECT)
@@ -495,6 +499,38 @@ export default function RoomPage() {
     if (deleteError) {
       setTrackers(snapshot);
       setError(deleteError.message);
+    }
+  }
+
+  async function updateCustomTrackerTime(tracker: Tracker) {
+    if (!room?.id) return;
+    const raw = window.prompt(
+      "Set new countdown time. Examples: 30, 2:12, :30",
+      "",
+    );
+    if (raw === null) return;
+
+    const nextMinutes = parseFlexibleDuration(raw);
+    if (nextMinutes === null) {
+      window.alert("Invalid time format. Use minutes (30), H:MM (2:12), or :MM (:30).");
+      return;
+    }
+
+    const nextTargetAt = new Date(Date.now() + nextMinutes * 60000).toISOString();
+    const snapshot = trackers;
+    setTrackers((prev) =>
+      prev.map((item) => (item.id === tracker.id ? { ...item, targetAt: nextTargetAt } : item)),
+    );
+
+    const { error: updateError } = await supabase
+      .from("trackers")
+      .update({ target_at: nextTargetAt })
+      .eq("room_id", room.id)
+      .eq("id", tracker.id);
+
+    if (updateError) {
+      setTrackers(snapshot);
+      setError(updateError.message);
     }
   }
 
@@ -747,6 +783,15 @@ export default function RoomPage() {
                   >
                     Remove
                   </button>
+                  {tracker.isCustomTime && (
+                    <button
+                      type="button"
+                      className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-1 text-sm font-semibold text-sky-300 hover:border-sky-500"
+                      onClick={() => void updateCustomTrackerTime(tracker)}
+                    >
+                      Set Time
+                    </button>
+                  )}
                 </article>
               );
             })
@@ -983,6 +1028,7 @@ function mapTracker(row: DbTracker): Tracker {
     phase: row.phase,
     noEventMinutes: row.no_event_minutes,
     presetSlot: row.preset_slot,
+    isCustomTime: Boolean(row.is_custom_time),
     targetAt: row.target_at,
     createdAt: row.created_at,
   };
