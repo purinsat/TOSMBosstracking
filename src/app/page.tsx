@@ -3,12 +3,15 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
+import { LocaleToggle } from "@/components/ui/LocaleToggle";
 import { DEFAULT_SETTINGS } from "@/lib/countdown";
+import { useLocale } from "@/lib/i18n/LocaleProvider";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export default function Home() {
   const router = useRouter();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const { t } = useLocale();
   const [roomName, setRoomName] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [loading, setLoading] = useState<null | "create" | "join">(null);
@@ -70,7 +73,7 @@ export default function Home() {
     setError("");
     const normalizedCode = joinCode.trim().toUpperCase();
     if (!normalizedCode) {
-      setError("Please enter a room code.");
+      setError(t("home.errorEmpty"));
       return;
     }
 
@@ -84,7 +87,7 @@ export default function Home() {
 
       if (joinError) throw new Error(joinError.message);
       if (!data) {
-        setError("Room not found. Check the room code.");
+        setError(t("home.errorNotFound"));
         return;
       }
 
@@ -99,23 +102,24 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-10 text-slate-100">
       <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
-        <h1 className="text-center text-4xl font-bold tracking-wide">
-          TOSM Boss Tracking By PonderingTH
-        </h1>
-        <p className="text-center text-base text-slate-300">
-          Create a room to share timers, or join an existing room code.
-        </p>
+        <div className="flex items-start justify-between gap-2">
+          <h1 className="text-3xl font-bold tracking-wide sm:text-4xl">
+            TOSM Boss Tracking By PonderingTH
+          </h1>
+          <LocaleToggle />
+        </div>
+        <p className="text-base text-slate-300">{t("home.subtitle")}</p>
 
         <section className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
-          <h2 className="text-xl font-semibold text-sky-300">Create Room</h2>
+          <h2 className="text-xl font-semibold text-sky-300">{t("home.createRoom")}</h2>
           <label className="mt-3 block text-base text-slate-200">
-            Room Name (optional)
+            {t("home.createRoomNameLabel")}
             <input
               type="text"
               value={roomName}
               onChange={(e) => setRoomName(e.target.value)}
               className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-lg"
-              placeholder="Guild Party A"
+              placeholder={t("home.createRoomNamePlaceholder")}
             />
           </label>
           <button
@@ -124,14 +128,14 @@ export default function Home() {
             disabled={loading !== null}
             className="mt-3 w-full rounded-xl border border-sky-500 px-4 py-2 text-lg font-semibold text-sky-300 disabled:opacity-60"
           >
-            {loading === "create" ? "Creating..." : "Create Room"}
+            {loading === "create" ? t("home.creating") : t("home.createRoom")}
           </button>
         </section>
 
         <section className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
-          <h2 className="text-xl font-semibold text-sky-300">Join Room</h2>
+          <h2 className="text-xl font-semibold text-sky-300">{t("home.joinRoom")}</h2>
           <label className="mt-3 block text-base text-slate-200">
-            Room Code
+            {t("home.roomCode")}
             <input
               type="text"
               value={joinCode}
@@ -146,7 +150,7 @@ export default function Home() {
             disabled={loading !== null}
             className="mt-3 w-full rounded-xl border border-sky-500 px-4 py-2 text-lg font-semibold text-sky-300 disabled:opacity-60"
           >
-            {loading === "join" ? "Joining..." : "Join Room"}
+            {loading === "join" ? t("home.joining") : t("home.joinRoom")}
           </button>
         </section>
 
@@ -158,7 +162,7 @@ export default function Home() {
 
         <section className="mt-2 rounded-2xl border border-slate-700 bg-slate-900/70 p-4 text-center">
           <p className="text-base text-slate-200">
-            Please Subscribe at{" "}
+            {t("promo.subscribe")}{" "}
             <a
               href="https://www.youtube.com/@PonderingTH"
               target="_blank"
@@ -169,7 +173,7 @@ export default function Home() {
             </a>
           </p>
           <p className="mt-2 text-sm text-slate-300">
-            Feel free to support us by Join our membership or this link{" "}
+            {t("promo.support")}{" "}
             <a
               href="https://tipme.in.th/ponderingth"
               target="_blank"
@@ -179,7 +183,7 @@ export default function Home() {
               tipme.in.th/ponderingth
             </a>
           </p>
-          <p className="mt-2 text-sm text-slate-400">Thanks and enjoyed !</p>
+          <p className="mt-2 text-sm text-slate-400">{t("promo.thanks")}</p>
         </section>
       </div>
     </main>

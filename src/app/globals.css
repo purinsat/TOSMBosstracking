@@ -24,3 +24,30 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+@keyframes tracker-flash {
+  0% {
+    box-shadow: 0 0 0 0 rgb(251 191 36 / 0.85), 0 0 24px 0 rgb(251 191 36 / 0.25);
+    transform: scale(1);
+  }
+  20% {
+    box-shadow: 0 0 0 6px rgb(251 191 36 / 0.55), 0 0 30px 4px rgb(251 191 36 / 0.35);
+    transform: scale(1.015);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(251 191 36 / 0), 0 0 0 0 rgb(251 191 36 / 0);
+    transform: scale(1);
+  }
+}
+
+.tracker-flash {
+  animation: tracker-flash 1.3s ease-out 0s 3 both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tracker-flash {
+    animation: none;
+    outline: 2px solid rgb(251 191 36 / 0.85);
+    outline-offset: 2px;
+  }
+}

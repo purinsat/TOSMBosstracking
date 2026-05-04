@@ -126,3 +126,46 @@ export function getDynamicPhaseDisplay(
 
   return "4";
 }
+
+/**
+ * Like getDynamicPhaseDisplay, but when the current phase is 1-4 it appends a
+ * decimal representing how far into the phase we are (0 = just started,
+ * 9 = almost done with the current phase). "No event" and "On" are passed
+ * through unchanged.
+ */
+export function getDynamicPhaseDisplayWithDecimal(
+  startPhase: Phase,
+  remainingSeconds: number,
+  timings: PhaseTimings,
+  noEventMinutes: number,
+): string {
+  const base = getDynamicPhaseDisplay(startPhase, remainingSeconds, timings, noEventMinutes);
+  if (!["1", "2", "3", "4"].includes(base)) return base;
+
+  const remainingMinutes = remainingSeconds / 60;
+  const p2Start = timings.p23 + timings.p34 + timings.p4on;
+  const p3Start = timings.p34 + timings.p4on;
+  const p4Start = timings.p4on;
+
+  let phaseRemaining = 0;
+  let phaseDuration = 0;
+  if (base === "1") {
+    phaseRemaining = remainingMinutes - p2Start;
+    phaseDuration = timings.p12;
+  } else if (base === "2") {
+    phaseRemaining = remainingMinutes - p3Start;
+    phaseDuration = timings.p23;
+  } else if (base === "3") {
+    phaseRemaining = remainingMinutes - p4Start;
+    phaseDuration = timings.p34;
+  } else {
+    phaseRemaining = remainingMinutes;
+    phaseDuration = timings.p4on;
+  }
+
+  if (phaseDuration <= 0) return `${base}.0`;
+  const clamped = Math.min(phaseDuration, Math.max(0, phaseRemaining));
+  const completed = 1 - clamped / phaseDuration;
+  const decimal = Math.min(9, Math.max(0, Math.floor(completed * 10)));
+  return `${base}.${decimal}`;
+}
