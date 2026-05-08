@@ -77,6 +77,14 @@ export function formatMinutesSeconds(totalSeconds: number): string {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
+/** Formats an elapsed/remaining duration as HH:MM (zero-padded, clamped to 0). */
+export function formatHoursMinutes(totalSeconds: number): string {
+  const clamped = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(clamped / 3600);
+  const minutes = Math.floor((clamped % 3600) / 60);
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
 export function getColorClasses(remainingMinutes: number): string {
   if (remainingMinutes < 25) {
     return "border-red-500 bg-red-950/30";

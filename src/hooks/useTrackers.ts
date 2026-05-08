@@ -6,6 +6,8 @@ import { TRACKERS_SELECT, mapTracker } from "@/lib/mappers";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { DbTracker, Tracker } from "@/lib/types";
 
+const FIVE_HOURS_MS = 5 * 60 * 60 * 1000;
+
 export type NewTrackerInput = {
   roomId: string;
   mapLv: number;
@@ -15,6 +17,8 @@ export type NewTrackerInput = {
   presetSlot: 1 | 2 | 3 | null;
   isCustomTime: boolean;
   targetAt: string;
+  kind?: "preset" | "manual_phase";
+  phaseDecimal?: number | null;
 };
 
 export type UseTrackersResult = {
@@ -25,6 +29,8 @@ export type UseTrackersResult = {
   addTracker: (input: NewTrackerInput) => Promise<Tracker | null>;
   removeTracker: (id: string) => Promise<void>;
   setCustomTrackerTime: (id: string, minutes: number) => Promise<boolean>;
+  resetTrackerTime: (id: string) => Promise<boolean>;
+  updateTrackerPhaseDecimal: (id: string, phaseDecimal: number) => Promise<boolean>;
   removeExpiredLocally: (ids: string[]) => void;
 };
 
@@ -40,6 +46,8 @@ export function useTrackers(roomId: string | null): UseTrackersResult {
   const selfInsertedIdsRef = useRef<Set<string>>(new Set());
   const flashTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const isFirstLoadRef = useRef(true);
+  // IDs with an in-flight optimistic update — ingest skips overwriting these
+  const inFlightIdsRef = useRef<Set<string>>(new Set());
 
   const clearFlash = useCallback((id: string) => {
     setFlashedTrackerIds((prev) => {
@@ -76,6 +84,7 @@ export function useTrackers(roomId: string | null): UseTrackersResult {
       const nextIds = new Set(next.map((tracker) => tracker.id));
       const knownIds = knownIdsRef.current;
       const selfInserted = selfInsertedIdsRef.current;
+      const inFlight = inFlightIdsRef.current;
 
       if (!isFirstLoadRef.current) {
         for (const id of nextIds) {
@@ -95,19 +104,33 @@ export function useTrackers(roomId: string | null): UseTrackersResult {
       }
 
       knownIdsRef.current = nextIds;
-      setTrackers(next);
+
+      // Preserve the current optimistic value for any tracker with an in-flight update
+      // so incoming refetches don't briefly revert to the old DB value mid-write.
+      if (inFlight.size > 0) {
+        setTrackers((current) =>
+          next.map((incoming) => {
+            if (inFlight.has(incoming.id)) {
+              return current.find((c) => c.id === incoming.id) ?? incoming;
+            }
+            return incoming;
+          }),
+        );
+      } else {
+        setTrackers(next);
+      }
     },
     [flashId, clearFlash],
   );
 
   const fetchTrackers = useCallback(
     async (id: string) => {
-      const nowIso = new Date().toISOString();
+      // Fetch all rows (no target_at filter) because manual_phase rows live past their targetAt.
+      // Server-side cleanup of expired manual_phase rows is done on load; here we just need all live ones.
       const { data, error: readError } = await supabase
         .from("trackers")
         .select(TRACKERS_SELECT)
         .eq("room_id", id)
-        .gt("target_at", nowIso)
         .order("target_at", { ascending: true })
         .returns<DbTracker[]>();
 
@@ -127,11 +150,24 @@ export function useTrackers(roomId: string | null): UseTrackersResult {
     async function load() {
       if (!roomId) return;
       const nowIso = new Date().toISOString();
+      const fiveHoursAgoIso = new Date(Date.now() - FIVE_HOURS_MS).toISOString();
+
+      // Clean up expired preset trackers.
       await supabase
         .from("trackers")
         .delete()
         .eq("room_id", roomId)
+        .eq("kind", "preset")
         .lte("target_at", nowIso);
+
+      // Clean up manual_phase trackers that have been in count-forward for > 5 hours.
+      await supabase
+        .from("trackers")
+        .delete()
+        .eq("room_id", roomId)
+        .eq("kind", "manual_phase")
+        .lt("target_at", fiveHoursAgoIso);
+
       if (!active) return;
       await fetchTrackers(roomId);
     }
@@ -179,6 +215,8 @@ export function useTrackers(roomId: string | null): UseTrackersResult {
   const addTracker = useCallback<UseTrackersResult["addTracker"]>(
     async (input) => {
       if (!roomId) return null;
+      const kind = input.kind ?? "preset";
+      const phaseDecimal = input.phaseDecimal ?? null;
       const optimisticId = `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       const optimistic: Tracker = {
         id: optimisticId,
@@ -191,6 +229,8 @@ export function useTrackers(roomId: string | null): UseTrackersResult {
         isCustomTime: input.isCustomTime,
         targetAt: input.targetAt,
         createdAt: new Date().toISOString(),
+        kind,
+        phaseDecimal,
       };
 
       setTrackers((prev) => [...prev, optimistic]);
@@ -207,6 +247,8 @@ export function useTrackers(roomId: string | null): UseTrackersResult {
           preset_slot: input.presetSlot,
           is_custom_time: input.isCustomTime,
           target_at: input.targetAt,
+          kind,
+          phase_decimal: phaseDecimal,
         })
         .select(TRACKERS_SELECT)
         .single<DbTracker>();
@@ -258,6 +300,7 @@ export function useTrackers(roomId: string | null): UseTrackersResult {
       if (!roomId) return false;
       const nextTargetAt = new Date(Date.now() + minutes * 60000).toISOString();
       const snapshot = trackers;
+      inFlightIdsRef.current.add(id);
       setTrackers((prev) =>
         prev.map((item) => (item.id === id ? { ...item, targetAt: nextTargetAt } : item)),
       );
@@ -267,6 +310,63 @@ export function useTrackers(roomId: string | null): UseTrackersResult {
         .update({ target_at: nextTargetAt })
         .eq("room_id", roomId)
         .eq("id", id);
+
+      inFlightIdsRef.current.delete(id);
+
+      if (updateError) {
+        setTrackers(snapshot);
+        setError(updateError.message);
+        return false;
+      }
+      return true;
+    },
+    [roomId, trackers, supabase],
+  );
+
+  const resetTrackerTime = useCallback<UseTrackersResult["resetTrackerTime"]>(
+    async (id) => {
+      if (!roomId) return false;
+      const nowIso = new Date().toISOString();
+      const snapshot = trackers;
+      inFlightIdsRef.current.add(id);
+      setTrackers((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, targetAt: nowIso } : item)),
+      );
+
+      const { error: updateError } = await supabase
+        .from("trackers")
+        .update({ target_at: nowIso })
+        .eq("room_id", roomId)
+        .eq("id", id);
+
+      inFlightIdsRef.current.delete(id);
+
+      if (updateError) {
+        setTrackers(snapshot);
+        setError(updateError.message);
+        return false;
+      }
+      return true;
+    },
+    [roomId, trackers, supabase],
+  );
+
+  const updateTrackerPhaseDecimal = useCallback<UseTrackersResult["updateTrackerPhaseDecimal"]>(
+    async (id, phaseDecimal) => {
+      if (!roomId) return false;
+      const snapshot = trackers;
+      inFlightIdsRef.current.add(id);
+      setTrackers((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, phaseDecimal } : item)),
+      );
+
+      const { error: updateError } = await supabase
+        .from("trackers")
+        .update({ phase_decimal: phaseDecimal })
+        .eq("room_id", roomId)
+        .eq("id", id);
+
+      inFlightIdsRef.current.delete(id);
 
       if (updateError) {
         setTrackers(snapshot);
@@ -300,6 +400,8 @@ export function useTrackers(roomId: string | null): UseTrackersResult {
     addTracker,
     removeTracker,
     setCustomTrackerTime,
+    resetTrackerTime,
+    updateTrackerPhaseDecimal,
     removeExpiredLocally,
   };
 }

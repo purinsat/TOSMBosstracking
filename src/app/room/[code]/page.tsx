@@ -7,10 +7,14 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { AddBossModal } from "@/components/room/AddBossModal";
 import { AppBar } from "@/components/room/AppBar";
 import { FiltersBar } from "@/components/room/FiltersBar";
+import { HardcoreAddBar } from "@/components/room/HardcoreAddBar";
+import { HardcoreTrackerGrid } from "@/components/room/HardcoreTrackerGrid";
 import { MobileActionBar } from "@/components/room/MobileActionBar";
 import { PromoSection } from "@/components/room/PromoSection";
 import { SettingsModal } from "@/components/room/SettingsModal";
 import { SortToggle } from "@/components/room/SortToggle";
+import { readInitialTab, TabSwitcher } from "@/components/room/TabSwitcher";
+import type { TabValue } from "@/components/room/TabSwitcher";
 import { TrackerList } from "@/components/room/TrackerList";
 import { useDialogs } from "@/components/ui/Dialog";
 import { useToast } from "@/components/ui/Toast";
@@ -25,6 +29,7 @@ import { playNewTrackerSound } from "@/lib/audio";
 import {
   parseCustomCountdownCommand,
   parseFlexibleDuration,
+  parseManualPhaseCommand,
   parseQuickCommand,
 } from "@/lib/commands";
 import { getTotalMinutes } from "@/lib/countdown";
@@ -33,11 +38,15 @@ import {
   ALL_FILTERS,
   filterRows,
   getDistinctMapLvs,
+  prepareManualPhaseRows,
   prepareRows,
+  type HardcoreSortMode,
   type RowFilters,
   type SortMode,
 } from "@/lib/rows";
 import type { Tracker } from "@/lib/types";
+
+const FIVE_HOURS_MS = 5 * 60 * 60 * 1000;
 
 export default function RoomPage() {
   const isHydrated = useSyncExternalStore(
@@ -70,19 +79,51 @@ export default function RoomPage() {
     addTracker,
     removeTracker,
     setCustomTrackerTime,
+    resetTrackerTime,
+    updateTrackerPhaseDecimal,
     removeExpiredLocally,
   } = useTrackers(roomId);
 
   const nowMs = useNow();
   const presenceCount = useRoomPresence(roomId);
 
+  const [tab, setTab] = useState<TabValue>("main");
   const [sortMode, setSortMode] = useState<SortMode>("time");
+  const [hardcoreSortMode, setHardcoreSortMode] = useState<HardcoreSortMode>("time");
   const [filters, setFilters] = useState<RowFilters>(ALL_FILTERS);
   const [grouped, setGrouped] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
-  useExpiryAlarm(trackers, settings, nowMs, removeExpiredLocally);
+  // Read persisted tab on first client render
+  useEffect(() => {
+    setTab(readInitialTab());
+  }, []);
+
+  // Split trackers by kind
+  const presetTrackers = useMemo(
+    () => trackers.filter((t) => t.kind === "preset"),
+    [trackers],
+  );
+  const manualPhaseTrackers = useMemo(
+    () => trackers.filter((t) => t.kind === "manual_phase"),
+    [trackers],
+  );
+
+  // Auto-remove manual_phase trackers that have been counting forward > 5 hours
+  useEffect(() => {
+    if (nowMs === 0) return;
+    const expired = manualPhaseTrackers
+      .filter((t) => {
+        const targetMs = new Date(t.targetAt).getTime();
+        return nowMs > targetMs + FIVE_HOURS_MS;
+      })
+      .map((t) => t.id);
+    if (expired.length > 0) removeExpiredLocally(expired);
+  }, [nowMs, manualPhaseTrackers, removeExpiredLocally]);
+
+  // Only alarm/expire preset trackers
+  useExpiryAlarm(presetTrackers, settings, nowMs, removeExpiredLocally);
 
   const flashAudioContextRef = useRef<AudioContext | null>(null);
   const lastFlashedIdsRef = useRef<Set<string>>(new Set());
@@ -102,8 +143,13 @@ export default function RoomPage() {
   }, [flashedTrackerIds, settings.soundVolume, settings.soundMuted]);
 
   const rows = useMemo(
-    () => prepareRows(trackers, settings, nowMs, sortMode),
-    [trackers, settings, nowMs, sortMode],
+    () => prepareRows(presetTrackers, settings, nowMs, sortMode),
+    [presetTrackers, settings, nowMs, sortMode],
+  );
+
+  const hardcoreRows = useMemo(
+    () => prepareManualPhaseRows(manualPhaseTrackers, nowMs, hardcoreSortMode),
+    [manualPhaseTrackers, nowMs, hardcoreSortMode],
   );
 
   const availableMapLvs = useMemo(() => getDistinctMapLvs(rows), [rows]);
@@ -171,6 +217,7 @@ export default function RoomPage() {
       presetSlot,
       isCustomTime,
       targetAt,
+      kind: "preset",
     });
 
     if (inserted) {
@@ -178,6 +225,73 @@ export default function RoomPage() {
       toast.success(t("add.success"));
     } else {
       toast.error(t("add.failure"));
+    }
+  }
+
+  async function handleAddHardcore(raw: string) {
+    if (!roomId) return;
+    const parsed = parseManualPhaseCommand(raw);
+    if (!parsed) {
+      toast.error(t("hardcore.errorInvalid"));
+      return;
+    }
+
+    let targetAt: string;
+    let phaseDecimal: number;
+
+    if (parsed.phaseDecimal !== null) {
+      targetAt = new Date(Date.now()).toISOString();
+      phaseDecimal = parsed.phaseDecimal;
+    } else {
+      targetAt = new Date(Date.now() + (parsed.countdownMinutes ?? 0) * 60000).toISOString();
+      phaseDecimal = 0;
+    }
+
+    const inserted = await addTracker({
+      roomId,
+      mapLv: parsed.mapLv,
+      ch: parsed.ch,
+      phase: "No event",
+      noEventMinutes: 0,
+      presetSlot: null,
+      isCustomTime: true,
+      targetAt,
+      kind: "manual_phase",
+      phaseDecimal,
+    });
+
+    if (!inserted) {
+      toast.error(t("add.failure"));
+    }
+  }
+
+  function handleCycleWhole(id: string) {
+    const tracker = trackers.find((item) => item.id === id);
+    if (!tracker) return;
+    const current = tracker.phaseDecimal ?? 0;
+    if (current >= 5.0) {
+      // BOSS ON → reset to phase 1
+      void updateTrackerPhaseDecimal(id, 1);
+      return;
+    }
+    const currentWhole = current === 0 ? 0 : Math.floor(current);
+    const nextWhole = currentWhole === 0 ? 1 : (currentWhole % 4) + 1;
+    // Always a whole number — decimal resets to 0
+    void updateTrackerPhaseDecimal(id, nextWhole);
+  }
+
+  function handleBumpDecimal(id: string) {
+    const tracker = trackers.find((item) => item.id === id);
+    if (!tracker || !tracker.phaseDecimal || tracker.phaseDecimal === 0) return;
+    // No-op if already BOSS ON
+    if (tracker.phaseDecimal >= 5.0) return;
+    const whole = Math.floor(tracker.phaseDecimal);
+    const currentDecimal = Math.round((tracker.phaseDecimal - whole) * 10);
+    if (currentDecimal >= 9) {
+      // Roll over: 3.9→4, 4.9→5 (BOSS ON)
+      void updateTrackerPhaseDecimal(id, whole + 1);
+    } else {
+      void updateTrackerPhaseDecimal(id, whole + (currentDecimal + 1) / 10);
     }
   }
 
@@ -246,34 +360,55 @@ export default function RoomPage() {
           </p>
         )}
 
-        <button
-          className="flex h-20 items-center justify-center gap-3 rounded-full border-2 border-dashed border-slate-600 bg-slate-900/60 hover:border-sky-400"
-          type="button"
-          onClick={() => setShowAdd(true)}
-        >
-          <span className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-sky-400 text-3xl leading-none text-sky-300">
-            +
-          </span>
-          <span className="text-base text-slate-300">{t("action.addBoss")}</span>
-        </button>
+        <TabSwitcher value={tab} onChange={setTab} />
 
-        <SortToggle value={sortMode} onChange={setSortMode} />
+        {tab === "main" && (
+          <>
+            <button
+              className="flex h-20 items-center justify-center gap-3 rounded-full border-2 border-dashed border-slate-600 bg-slate-900/60 hover:border-sky-400"
+              type="button"
+              onClick={() => setShowAdd(true)}
+            >
+              <span className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-sky-400 text-3xl leading-none text-sky-300">
+                +
+              </span>
+              <span className="text-base text-slate-300">{t("action.addBoss")}</span>
+            </button>
 
-        <FiltersBar
-          filters={filters}
-          availableMapLvs={availableMapLvs}
-          grouped={grouped}
-          onFiltersChange={setFilters}
-          onToggleGrouped={() => setGrouped((prev) => !prev)}
-        />
+            <SortToggle value={sortMode} onChange={setSortMode} />
 
-        <TrackerList
-          rows={visibleRows}
-          flashedIds={flashedTrackerIds}
-          grouped={grouped}
-          onRemove={(id) => void removeTracker(id)}
-          onSetTime={(id) => void handleSetTime(id)}
-        />
+            <FiltersBar
+              filters={filters}
+              availableMapLvs={availableMapLvs}
+              grouped={grouped}
+              onFiltersChange={setFilters}
+              onToggleGrouped={() => setGrouped((prev) => !prev)}
+            />
+
+            <TrackerList
+              rows={visibleRows}
+              flashedIds={flashedTrackerIds}
+              grouped={grouped}
+              onRemove={(id) => void removeTracker(id)}
+              onSetTime={(id) => void handleSetTime(id)}
+            />
+          </>
+        )}
+
+        {tab === "hardcore" && (
+          <>
+            <HardcoreAddBar onSubmit={handleAddHardcore} />
+            <HardcoreTrackerGrid
+              rows={hardcoreRows}
+              sortMode={hardcoreSortMode}
+              onSortMode={setHardcoreSortMode}
+              onRemove={(id) => void removeTracker(id)}
+              onCycleWhole={handleCycleWhole}
+              onBumpDecimal={handleBumpDecimal}
+              onResetTime={(id) => void resetTrackerTime(id)}
+            />
+          </>
+        )}
 
         <PromoSection />
       </div>
@@ -281,6 +416,7 @@ export default function RoomPage() {
       <MobileActionBar
         soundMuted={settings.soundMuted}
         sortMode={sortMode}
+        tab={tab}
         onAdd={() => setShowAdd(true)}
         onToggleMute={() => void updateSoundSettings({ soundMuted: !settings.soundMuted })}
         onCycleSort={() => setSortMode((prev) => (prev === "time" ? "channel" : "time"))}

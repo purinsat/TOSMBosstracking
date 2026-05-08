@@ -87,6 +87,20 @@ export type Dictionary = {
   "room.loading": string;
   "room.back": string;
   "room.notFound": string;
+
+  "tab.main": string;
+  "tab.hardcore": string;
+
+  "hardcore.addPlaceholder": string;
+  "hardcore.addHint": string;
+  "hardcore.errorInvalid": string;
+  "hardcore.empty": string;
+  "hardcore.elapsed": string;
+  "hardcore.countdown": string;
+  "hardcore.bumpDecimal": string;
+  "hardcore.sortBy": string;
+  "hardcore.sort.time": string;
+  "hardcore.sort.phase": string;
 };
 
 const en: Dictionary = {
@@ -178,6 +192,20 @@ const en: Dictionary = {
   "room.loading": "Loading room...",
   "room.back": "Back to room chooser",
   "room.notFound": "Room not found.",
+
+  "tab.main": "Main",
+  "tab.hardcore": "Hardcore",
+
+  "hardcore.addPlaceholder": "72 1 2:00 / 72 1 :20 / 72 1 2.5",
+  "hardcore.addHint": "Lv Ch <Phase 1-4 or 1.1-4.9> or Lv Ch <:MM or H:MM or minutes>. Press Enter to add.",
+  "hardcore.errorInvalid": "Invalid. Use: Lv Ch <phase 1-4 or 1.1-4.9 or :MM or H:MM or minutes>.",
+  "hardcore.empty": "No hardcore trackers yet. Type above and press Enter.",
+  "hardcore.elapsed": "Elapsed",
+  "hardcore.countdown": "Until phase 1",
+  "hardcore.bumpDecimal": "Bump phase decimal +0.1",
+  "hardcore.sortBy": "Sort:",
+  "hardcore.sort.time": "Time",
+  "hardcore.sort.phase": "Phase",
 };
 
 const th: Dictionary = {
@@ -269,6 +297,20 @@ const th: Dictionary = {
   "room.loading": "กำลังโหลดห้อง...",
   "room.back": "กลับไปหน้าเลือกห้อง",
   "room.notFound": "ไม่พบห้อง",
+
+  "tab.main": "ปกติ",
+  "tab.hardcore": "Hardcore",
+
+  "hardcore.addPlaceholder": "72 1 2:00 / 72 1 :20 / 72 1 2.5",
+  "hardcore.addHint": "Lv Ch <เฟส 1-4 หรือ 1.1-4.9> หรือ Lv Ch <:นาที หรือ ชั่วโมง:นาที>. กด Enter เพื่อเพิ่ม",
+  "hardcore.errorInvalid": "รูปแบบไม่ถูกต้อง ใช้: Lv Ch <เฟส 1-4 หรือ 1.1-4.9 หรือ :MM หรือ H:MM หรือนาที>",
+  "hardcore.empty": "ยังไม่มีการติดตาม Hardcore พิมพ์ด้านบนแล้วกด Enter",
+  "hardcore.elapsed": "เวลาที่ผ่านไป",
+  "hardcore.countdown": "ก่อนเฟส 1",
+  "hardcore.bumpDecimal": "เพิ่มทศนิยมเฟส +0.1",
+  "hardcore.sortBy": "เรียง:",
+  "hardcore.sort.time": "เวลา",
+  "hardcore.sort.phase": "เฟส",
 };
 
 export const DICTIONARIES: Record<Locale, Dictionary> = { en, th };

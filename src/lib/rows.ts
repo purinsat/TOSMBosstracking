@@ -2,6 +2,67 @@ import { getDynamicPhaseDisplayWithDecimal, getTotalMinutes } from "@/lib/countd
 import { getPresetTimings } from "@/lib/mappers";
 import type { Settings, Tracker } from "@/lib/types";
 
+export type ManualPhaseRow = {
+  tracker: Tracker;
+  remainingSeconds: number;
+  elapsedSeconds: number;
+  isCountForward: boolean;
+  displayPhase: string;
+};
+
+export function formatManualPhaseDisplay(phaseDecimal: number | null): string {
+  if (phaseDecimal === null || phaseDecimal === 0) return "No event";
+  if (phaseDecimal >= 5.0) return "BOSS ON";
+  const whole = Math.floor(phaseDecimal);
+  const decimal = Math.round((phaseDecimal - whole) * 10);
+  if (decimal === 0) return String(whole);
+  return `${whole}.${decimal}`;
+}
+
+export type HardcoreSortMode = "time" | "phase";
+
+function phaseDecimalSortKey(phaseDecimal: number | null): number {
+  // Higher = shown first. BOSS ON (>=5) → 6, phase 1–4.9 → value, No event (0/null) → -1
+  if (phaseDecimal === null || phaseDecimal === 0) return -1;
+  if (phaseDecimal >= 5) return 6;
+  return phaseDecimal;
+}
+
+export function prepareManualPhaseRows(
+  trackers: Tracker[],
+  nowMs: number,
+  sortMode: HardcoreSortMode = "time",
+): ManualPhaseRow[] {
+  const rows: ManualPhaseRow[] = trackers
+    .filter((t) => t.kind === "manual_phase")
+    .map((tracker) => {
+      const targetMs = new Date(tracker.targetAt).getTime();
+      const diff = (targetMs - nowMs) / 1000;
+      const remainingSeconds = Math.floor(diff);
+      const elapsedSeconds = Math.max(0, Math.floor(-diff));
+      const isCountForward = remainingSeconds <= 0;
+      const displayPhase = formatManualPhaseDisplay(tracker.phaseDecimal);
+      return { tracker, remainingSeconds, elapsedSeconds, isCountForward, displayPhase };
+    });
+
+  if (sortMode === "phase") {
+    return rows.sort((a, b) => {
+      const phaseDiff =
+        phaseDecimalSortKey(b.tracker.phaseDecimal) - phaseDecimalSortKey(a.tracker.phaseDecimal);
+      if (phaseDiff !== 0) return phaseDiff;
+      // Within same phase: count-forward by elapsed DESC, countdown by remaining ASC
+      if (a.isCountForward && b.isCountForward) return b.elapsedSeconds - a.elapsedSeconds;
+      if (!a.isCountForward && !b.isCountForward) return a.remainingSeconds - b.remainingSeconds;
+      return a.isCountForward ? -1 : 1;
+    });
+  }
+
+  // Default: sort by time — count-forward (elapsed DESC) first, then countdown (remaining ASC)
+  const forward = rows.filter((r) => r.isCountForward).sort((a, b) => b.elapsedSeconds - a.elapsedSeconds);
+  const countdown = rows.filter((r) => !r.isCountForward).sort((a, b) => a.remainingSeconds - b.remainingSeconds);
+  return [...forward, ...countdown];
+}
+
 export type SortMode = "time" | "channel";
 
 export type RowFilters = {

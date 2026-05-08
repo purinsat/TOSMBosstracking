@@ -165,6 +165,79 @@ export function parseCustomCountdownCommand(
   return { mapLv, ch, countdownMinutes, presetSlot };
 }
 
+export type ParsedManualPhaseCommand = {
+  mapLv: number;
+  ch: number;
+  /** Set when user typed a duration token. Exactly one of these is non-null. */
+  countdownMinutes: number | null;
+  /** 1.0–5.0 when user typed a phase token (5.0 = BOSS ON). 0 = No event (internal use only). */
+  phaseDecimal: number | null;
+};
+
+/**
+ * Manual-phase command: `Lv Ch <Token>` (no preset, no phase progression).
+ *
+ * Token disambiguation (applied in order):
+ *   1. Pure integer 1|2|3|4|5       -> phase (5 = BOSS ON, phaseDecimal = 5.0)
+ *   2. `N.D` where N in 1-4, D 0-9  -> phase decimal
+ *   3. `:MM` (0-59)                  -> countdown minutes-only
+ *   4. `H:MM`                        -> countdown H:MM
+ *   5. Pure integer >= 2 digits      -> countdown minutes
+ *   6. Otherwise null
+ */
+export function parseManualPhaseCommand(command: string): ParsedManualPhaseCommand | null {
+  const parts = command.trim().split(/\s+/);
+  if (parts.length !== 3) return null;
+
+  const mapLv = Number(parts[0]);
+  const ch = Number(parts[1]);
+  if (!isValidLvCh(mapLv, ch)) return null;
+
+  const token = parts[2];
+
+  // 1. Pure integer 1-5 -> phase (5 = BOSS ON)
+  if (/^\d$/.test(token)) {
+    const n = Number(token);
+    if (n >= 1 && n <= 5) {
+      return { mapLv, ch, phaseDecimal: n, countdownMinutes: null };
+    }
+    // 0 or 6-9 are not valid phases and not useful durations as single digit
+    return null;
+  }
+
+  // 2. Decimal phase N.D where N in 1-4
+  if (/^[1-4]\.[0-9]$/.test(token)) {
+    const val = Number(token);
+    if (val >= 1.0 && val <= 4.9) {
+      return { mapLv, ch, phaseDecimal: val, countdownMinutes: null };
+    }
+    return null;
+  }
+
+  // 3. :MM minutes-only countdown
+  if (/^:[0-5]?\d$/.test(token)) {
+    const mins = Number(token.slice(1));
+    if (Number.isNaN(mins) || mins < 0 || mins > 59) return null;
+    return { mapLv, ch, countdownMinutes: mins, phaseDecimal: null };
+  }
+
+  // 4. H:MM countdown
+  if (/^\d{1,4}:[0-5]\d$/.test(token)) {
+    const minutes = parseDurationToMinutes(token);
+    if (minutes === null) return null;
+    return { mapLv, ch, countdownMinutes: minutes, phaseDecimal: null };
+  }
+
+  // 5. Multi-digit integer (>=5 minutes as standalone, or 2+ digit number)
+  if (/^\d{2,}$/.test(token)) {
+    const mins = Number(token);
+    if (Number.isNaN(mins) || mins < 0) return null;
+    return { mapLv, ch, countdownMinutes: mins, phaseDecimal: null };
+  }
+
+  return null;
+}
+
 /**
  * Given a starting phase and how far into that phase (fractional 0..1 from the
  * start of the phase), compute the total remaining minutes until "On" using the

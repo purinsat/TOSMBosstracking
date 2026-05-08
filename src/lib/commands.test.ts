@@ -5,6 +5,7 @@ import {
   isValidLvCh,
   parseCustomCountdownCommand,
   parseFlexibleDuration,
+  parseManualPhaseCommand,
   parsePresetSlot,
   parseQuickCommand,
 } from "@/lib/commands";
@@ -241,6 +242,64 @@ describe("parseCustomCountdownCommand", () => {
   it("rejects wrong token count", () => {
     expect(parseCustomCountdownCommand("103 12")).toBeNull();
     expect(parseCustomCountdownCommand("103 12 :30 2 extra")).toBeNull();
+  });
+});
+
+describe("parseManualPhaseCommand", () => {
+  it("parses pure integer phase 1-4", () => {
+    expect(parseManualPhaseCommand("72 1 1")).toEqual({ mapLv: 72, ch: 1, phaseDecimal: 1, countdownMinutes: null });
+    expect(parseManualPhaseCommand("72 1 4")).toEqual({ mapLv: 72, ch: 1, phaseDecimal: 4, countdownMinutes: null });
+  });
+
+  it("parses decimal phase 1.1-4.9", () => {
+    expect(parseManualPhaseCommand("72 1 2.5")).toEqual({ mapLv: 72, ch: 1, phaseDecimal: 2.5, countdownMinutes: null });
+    expect(parseManualPhaseCommand("72 1 1.0")).toEqual({ mapLv: 72, ch: 1, phaseDecimal: 1.0, countdownMinutes: null });
+    expect(parseManualPhaseCommand("72 1 4.9")).toEqual({ mapLv: 72, ch: 1, phaseDecimal: 4.9, countdownMinutes: null });
+  });
+
+  it("parses :MM countdown", () => {
+    expect(parseManualPhaseCommand("72 1 :20")).toEqual({ mapLv: 72, ch: 1, countdownMinutes: 20, phaseDecimal: null });
+    expect(parseManualPhaseCommand("72 1 :0")).toEqual({ mapLv: 72, ch: 1, countdownMinutes: 0, phaseDecimal: null });
+    expect(parseManualPhaseCommand("72 1 :59")).toEqual({ mapLv: 72, ch: 1, countdownMinutes: 59, phaseDecimal: null });
+  });
+
+  it("parses H:MM countdown", () => {
+    expect(parseManualPhaseCommand("72 1 2:00")).toEqual({ mapLv: 72, ch: 1, countdownMinutes: 120, phaseDecimal: null });
+    expect(parseManualPhaseCommand("72 1 1:30")).toEqual({ mapLv: 72, ch: 1, countdownMinutes: 90, phaseDecimal: null });
+  });
+
+  it("parses multi-digit plain minutes", () => {
+    expect(parseManualPhaseCommand("72 1 30")).toEqual({ mapLv: 72, ch: 1, countdownMinutes: 30, phaseDecimal: null });
+    expect(parseManualPhaseCommand("72 1 120")).toEqual({ mapLv: 72, ch: 1, countdownMinutes: 120, phaseDecimal: null });
+  });
+
+  it("rejects invalid phase values", () => {
+    expect(parseManualPhaseCommand("72 1 0")).toBeNull();
+    expect(parseManualPhaseCommand("72 1 5")).toBeNull();
+    expect(parseManualPhaseCommand("72 1 0.5")).toBeNull();
+    expect(parseManualPhaseCommand("72 1 4.95")).toBeNull();
+  });
+
+  it("rejects :60 and above", () => {
+    expect(parseManualPhaseCommand("72 1 :60")).toBeNull();
+    expect(parseManualPhaseCommand("72 1 :99")).toBeNull();
+  });
+
+  it("rejects garbage tokens", () => {
+    expect(parseManualPhaseCommand("72 1 abc")).toBeNull();
+    expect(parseManualPhaseCommand("72 1 ")).toBeNull();
+    expect(parseManualPhaseCommand("garbage")).toBeNull();
+  });
+
+  it("rejects wrong number of tokens", () => {
+    expect(parseManualPhaseCommand("72 1")).toBeNull();
+    expect(parseManualPhaseCommand("72 1 2 extra")).toBeNull();
+  });
+
+  it("rejects invalid lv/ch", () => {
+    expect(parseManualPhaseCommand("9 1 2")).toBeNull();
+    expect(parseManualPhaseCommand("72 0 2")).toBeNull();
+    expect(parseManualPhaseCommand("72 31 2")).toBeNull();
   });
 });
 

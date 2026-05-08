@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import {
   DEFAULT_SETTINGS,
   formatDurationInput,
+  formatHoursMinutes,
   formatMinutesSeconds,
   getBaseCycleMinutes,
   getColorClasses,
@@ -145,6 +146,37 @@ describe("getDynamicPhaseDisplayWithDecimal", () => {
   it("handles zero-duration phases without crashing", () => {
     const zero: PhaseTimings = { p12: 0, p23: 0, p34: 0, p4on: 5 };
     expect(getDynamicPhaseDisplayWithDecimal("4", 5 * 60, zero, 0)).toBe("4.0");
+  });
+});
+
+describe("formatHoursMinutes", () => {
+  it("formats 0 seconds as 00:00", () => {
+    expect(formatHoursMinutes(0)).toBe("00:00");
+  });
+
+  it("formats exactly 59 seconds as 00:00 (floor to minutes)", () => {
+    expect(formatHoursMinutes(59)).toBe("00:00");
+  });
+
+  it("formats 60 seconds as 00:01", () => {
+    expect(formatHoursMinutes(60)).toBe("00:01");
+  });
+
+  it("formats 3600 seconds as 01:00", () => {
+    expect(formatHoursMinutes(3600)).toBe("01:00");
+  });
+
+  it("formats 5 * 3600 seconds as 05:00", () => {
+    expect(formatHoursMinutes(5 * 3600)).toBe("05:00");
+  });
+
+  it("formats 2h30m as 02:30", () => {
+    expect(formatHoursMinutes(2 * 3600 + 30 * 60)).toBe("02:30");
+  });
+
+  it("clamps negative values to 00:00", () => {
+    expect(formatHoursMinutes(-1)).toBe("00:00");
+    expect(formatHoursMinutes(-3600)).toBe("00:00");
   });
 });
 

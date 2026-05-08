@@ -29,6 +29,9 @@ export type Tracker = {
   isCustomTime: boolean;
   targetAt: string;
   createdAt: string;
+  kind: "preset" | "manual_phase";
+  /** 0.0 = No event, 1.0–4.9 = phase. Only meaningful when kind='manual_phase'. */
+  phaseDecimal: number | null;
 };
 
 export type Room = {
@@ -56,6 +59,8 @@ export type DbTracker = {
   is_custom_time: boolean | null;
   target_at: string;
   created_at: string;
+  kind: "preset" | "manual_phase";
+  phase_decimal: number | null;
 };
 
 export type DbRoomSettings = {

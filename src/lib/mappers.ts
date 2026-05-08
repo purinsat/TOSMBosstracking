@@ -20,7 +20,7 @@ export const ROOM_SETTINGS_SELECT =
   "room_id, p12, p23, p34, p4on, preset1_name, preset2_name, preset2_p12, preset2_p23, preset2_p34, preset2_p4on, preset3_name, preset3_p12, preset3_p23, preset3_p34, preset3_p4on, sound_volume, sound_muted, updated_at";
 
 export const TRACKERS_SELECT =
-  "id, room_id, map_lv, ch, phase, no_event_minutes, preset_slot, is_custom_time, target_at, created_at";
+  "id, room_id, map_lv, ch, phase, no_event_minutes, preset_slot, is_custom_time, target_at, created_at, kind, phase_decimal";
 
 export function mapRoom(row: DbRoom): Room {
   return {
@@ -43,6 +43,8 @@ export function mapTracker(row: DbTracker): Tracker {
     isCustomTime: Boolean(row.is_custom_time),
     targetAt: row.target_at,
     createdAt: row.created_at,
+    kind: row.kind ?? "preset",
+    phaseDecimal: row.phase_decimal ?? null,
   };
 }
 

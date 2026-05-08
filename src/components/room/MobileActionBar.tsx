@@ -1,11 +1,13 @@
 "use client";
 
+import type { TabValue } from "@/components/room/TabSwitcher";
 import { useLocale } from "@/lib/i18n/LocaleProvider";
 import type { SortMode } from "@/lib/rows";
 
 type Props = {
   soundMuted: boolean;
   sortMode: SortMode;
+  tab: TabValue;
   onAdd: () => void;
   onToggleMute: () => void;
   onCycleSort: () => void;
@@ -14,6 +16,7 @@ type Props = {
 export function MobileActionBar({
   soundMuted,
   sortMode,
+  tab,
   onAdd,
   onToggleMute,
   onCycleSort,
@@ -34,14 +37,22 @@ export function MobileActionBar({
           {soundMuted ? "🔇" : "🔊"}
         </button>
 
-        <button
-          type="button"
-          onClick={onAdd}
-          className="flex h-12 flex-1 items-center justify-center gap-2 rounded-full border-2 border-sky-400 bg-sky-950/50 px-4 text-base font-semibold text-sky-100 hover:bg-sky-900/60"
-        >
-          <span className="text-2xl leading-none">+</span>
-          {t("action.addBossShort")}
-        </button>
+        {tab === "main" && (
+          <button
+            type="button"
+            onClick={onAdd}
+            className="flex h-12 flex-1 items-center justify-center gap-2 rounded-full border-2 border-sky-400 bg-sky-950/50 px-4 text-base font-semibold text-sky-100 hover:bg-sky-900/60"
+          >
+            <span className="text-2xl leading-none">+</span>
+            {t("action.addBossShort")}
+          </button>
+        )}
+
+        {tab === "hardcore" && (
+          <div className="flex h-12 flex-1 items-center justify-center px-4">
+            <span className="text-sm text-slate-500">{t("tab.hardcore")}</span>
+          </div>
+        )}
 
         <button
           type="button"
