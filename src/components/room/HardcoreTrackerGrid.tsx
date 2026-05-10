@@ -6,8 +6,10 @@ import type { HardcoreSortMode, ManualPhaseRow } from "@/lib/rows";
 
 type Props = {
   rows: ManualPhaseRow[];
-  sortMode: HardcoreSortMode;
-  onSortMode: (mode: HardcoreSortMode) => void;
+  lastSort: HardcoreSortMode;
+  onSort: (mode: HardcoreSortMode) => void;
+  hideCooldown: boolean;
+  onToggleHideCooldown: () => void;
   onRemove: (id: string) => void;
   onCycleWhole: (id: string) => void;
   onBumpDecimal: (id: string) => void;
@@ -16,8 +18,10 @@ type Props = {
 
 export function HardcoreTrackerGrid({
   rows,
-  sortMode,
-  onSortMode,
+  lastSort,
+  onSort,
+  hideCooldown,
+  onToggleHideCooldown,
   onRemove,
   onCycleWhole,
   onBumpDecimal,
@@ -27,25 +31,39 @@ export function HardcoreTrackerGrid({
 
   return (
     <div className="flex flex-col gap-2">
-      {/* Sort toggle */}
-      <div className="flex items-center gap-1.5">
-        <span className="text-[11px] text-slate-500">{t("hardcore.sortBy")}</span>
-        <div className="flex rounded-full border border-slate-700 bg-slate-900 p-0.5">
-          {(["time", "phase"] as HardcoreSortMode[]).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => onSortMode(mode)}
-              className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors ${
-                sortMode === mode
-                  ? "bg-sky-600 text-white"
-                  : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              {t(`hardcore.sort.${mode}`)}
-            </button>
-          ))}
-        </div>
+      {/* Toolbar: snapshot sort buttons + hide-cooldown toggle */}
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onSort("time")}
+          className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+            lastSort === "time"
+              ? "border-sky-500 bg-sky-600 text-white"
+              : "border-slate-700 bg-slate-900 text-slate-300 hover:text-slate-100"
+          }`}
+        >
+          {t("hardcore.sortByTime")}
+        </button>
+        <button
+          type="button"
+          onClick={() => onSort("phase")}
+          className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+            lastSort === "phase"
+              ? "border-sky-500 bg-sky-600 text-white"
+              : "border-slate-700 bg-slate-900 text-slate-300 hover:text-slate-100"
+          }`}
+        >
+          {t("hardcore.sortByPhase")}
+        </button>
+        <label className="ml-auto flex cursor-pointer items-center gap-1.5 text-[11px] text-slate-300">
+          <input
+            type="checkbox"
+            checked={hideCooldown}
+            onChange={onToggleHideCooldown}
+            className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900"
+          />
+          {t("hardcore.hideCooldown")}
+        </label>
       </div>
 
       {rows.length === 0 ? (

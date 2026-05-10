@@ -19,7 +19,7 @@ export type ParsedCustomCommand = {
   presetSlot: PresetSlot | null;
 };
 
-export const MIN_MAP_LV = 10;
+export const MIN_MAP_LV = 3;
 export const MAX_MAP_LV = 190;
 export const MIN_CH = 1;
 export const MAX_CH = 30;
@@ -175,25 +175,30 @@ export type ParsedManualPhaseCommand = {
 };
 
 /**
- * Manual-phase command: `Lv Ch <Token>` (no preset, no phase progression).
+ * Manual-phase command: `Lv [Ch] <Token>` (no preset, no phase progression).
+ *
+ * - 2 tokens: `Lv Token`     — channel defaults to 1
+ * - 3 tokens: `Lv Ch Token`  — explicit channel
  *
  * Token disambiguation (applied in order):
- *   1. Pure integer 1|2|3|4|5       -> phase (5 = BOSS ON, phaseDecimal = 5.0)
- *   2. `N.D` where N in 1-4, D 0-9  -> phase decimal
- *   3. `:MM` (0-59)                  -> countdown minutes-only
- *   4. `H:MM`                        -> countdown H:MM
- *   5. Pure integer >= 2 digits      -> countdown minutes
- *   6. Otherwise null
+ *   1. Pure single digit 1-5   -> phase (5 = BOSS ON, phaseDecimal = 5.0)
+ *   2. `N.D` (N in 1-4, D 0-9) -> phase decimal
+ *   3. `NhMM?m?`               -> hours + optional minutes (e.g. 2h, 1h20, 1h20m)
+ *   4. `Nm`                    -> minutes with explicit suffix (e.g. 4m, 20m)
+ *   5. `:MM` (0-59)            -> countdown minutes-only (legacy)
+ *   6. `H:MM`                  -> countdown hours+minutes (legacy)
+ *   7. Pure >=2 digits         -> countdown minutes
  */
 export function parseManualPhaseCommand(command: string): ParsedManualPhaseCommand | null {
   const parts = command.trim().split(/\s+/);
-  if (parts.length !== 3) return null;
+  if (parts.length !== 2 && parts.length !== 3) return null;
 
   const mapLv = Number(parts[0]);
-  const ch = Number(parts[1]);
+  const hasChannel = parts.length === 3;
+  const ch = hasChannel ? Number(parts[1]) : 1;
   if (!isValidLvCh(mapLv, ch)) return null;
 
-  const token = parts[2];
+  const token = hasChannel ? parts[2] : parts[1];
 
   // 1. Pure integer 1-5 -> phase (5 = BOSS ON)
   if (/^\d$/.test(token)) {
@@ -201,7 +206,7 @@ export function parseManualPhaseCommand(command: string): ParsedManualPhaseComma
     if (n >= 1 && n <= 5) {
       return { mapLv, ch, phaseDecimal: n, countdownMinutes: null };
     }
-    // 0 or 6-9 are not valid phases and not useful durations as single digit
+    // 0 or 6-9 not valid as phase or standalone single-digit duration
     return null;
   }
 
@@ -214,21 +219,36 @@ export function parseManualPhaseCommand(command: string): ParsedManualPhaseComma
     return null;
   }
 
-  // 3. :MM minutes-only countdown
+  // 3. NhMM?m? -> hours + optional minutes (e.g. 2h, 1h20, 1h20m)
+  const hMatch = token.match(/^(\d+)h(\d{1,2})?m?$/);
+  if (hMatch) {
+    const hours = Number(hMatch[1]);
+    const mins = hMatch[2] !== undefined ? Number(hMatch[2]) : 0;
+    if (mins > 59) return null;
+    return { mapLv, ch, countdownMinutes: hours * 60 + mins, phaseDecimal: null };
+  }
+
+  // 4. Nm -> minutes with explicit suffix
+  const mMatch = token.match(/^(\d+)m$/);
+  if (mMatch) {
+    return { mapLv, ch, countdownMinutes: Number(mMatch[1]), phaseDecimal: null };
+  }
+
+  // 5. :MM minutes-only countdown (legacy)
   if (/^:[0-5]?\d$/.test(token)) {
     const mins = Number(token.slice(1));
     if (Number.isNaN(mins) || mins < 0 || mins > 59) return null;
     return { mapLv, ch, countdownMinutes: mins, phaseDecimal: null };
   }
 
-  // 4. H:MM countdown
+  // 6. H:MM countdown (legacy)
   if (/^\d{1,4}:[0-5]\d$/.test(token)) {
     const minutes = parseDurationToMinutes(token);
     if (minutes === null) return null;
     return { mapLv, ch, countdownMinutes: minutes, phaseDecimal: null };
   }
 
-  // 5. Multi-digit integer (>=5 minutes as standalone, or 2+ digit number)
+  // 7. Pure >=2 digit integer -> countdown minutes
   if (/^\d{2,}$/.test(token)) {
     const mins = Number(token);
     if (Number.isNaN(mins) || mins < 0) return null;

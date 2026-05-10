@@ -36,6 +36,7 @@ import { getTotalMinutes } from "@/lib/countdown";
 import { getPresetTimings } from "@/lib/mappers";
 import {
   ALL_FILTERS,
+  applyFrozenOrder,
   filterRows,
   getDistinctMapLvs,
   prepareManualPhaseRows,
@@ -89,7 +90,9 @@ export default function RoomPage() {
 
   const [tab, setTab] = useState<TabValue>("main");
   const [sortMode, setSortMode] = useState<SortMode>("time");
-  const [hardcoreSortMode, setHardcoreSortMode] = useState<HardcoreSortMode>("time");
+  const [hardcoreLastSort, setHardcoreLastSort] = useState<HardcoreSortMode>("time");
+  const [hardcoreOrder, setHardcoreOrder] = useState<string[] | null>(null);
+  const [hideHardcoreCooldown, setHideHardcoreCooldown] = useState(false);
   const [filters, setFilters] = useState<RowFilters>(ALL_FILTERS);
   const [grouped, setGrouped] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
@@ -99,6 +102,23 @@ export default function RoomPage() {
   useEffect(() => {
     setTab(readInitialTab());
   }, []);
+
+  // Read persisted hide-cooldown preference
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem("hardcoreHideCooldown") === "1") {
+        setHideHardcoreCooldown(true);
+      }
+    } catch {}
+  }, []);
+
+  function toggleHideCooldown() {
+    setHideHardcoreCooldown((prev) => {
+      const next = !prev;
+      try { window.localStorage.setItem("hardcoreHideCooldown", next ? "1" : "0"); } catch {}
+      return next;
+    });
+  }
 
   // Split trackers by kind
   const presetTrackers = useMemo(
@@ -121,6 +141,21 @@ export default function RoomPage() {
       .map((t) => t.id);
     if (expired.length > 0) removeExpiredLocally(expired);
   }, [nowMs, manualPhaseTrackers, removeExpiredLocally]);
+
+  // Auto-bump "No event" trackers to Phase 1 once their countdown reaches 0
+  const autoBumpedIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (nowMs === 0) return;
+    for (const tracker of manualPhaseTrackers) {
+      const phase = tracker.phaseDecimal ?? 0;
+      if (phase !== 0) continue; // only "No event" trackers
+      const targetMs = new Date(tracker.targetAt).getTime();
+      if (nowMs < targetMs) continue; // still counting down
+      if (autoBumpedIdsRef.current.has(tracker.id)) continue; // already fired
+      autoBumpedIdsRef.current.add(tracker.id);
+      void updateTrackerPhaseDecimal(tracker.id, 1.0);
+    }
+  }, [nowMs, manualPhaseTrackers, updateTrackerPhaseDecimal]);
 
   // Only alarm/expire preset trackers
   useExpiryAlarm(presetTrackers, settings, nowMs, removeExpiredLocally);
@@ -148,9 +183,19 @@ export default function RoomPage() {
   );
 
   const hardcoreRows = useMemo(
-    () => prepareManualPhaseRows(manualPhaseTrackers, nowMs, hardcoreSortMode),
-    [manualPhaseTrackers, nowMs, hardcoreSortMode],
+    () => prepareManualPhaseRows(manualPhaseTrackers, nowMs, "time"),
+    [manualPhaseTrackers, nowMs],
   );
+
+  const orderedHardcoreRows = useMemo(
+    () => applyFrozenOrder(hardcoreRows, hardcoreOrder),
+    [hardcoreRows, hardcoreOrder],
+  );
+
+  const visibleHardcoreRows = useMemo(() => {
+    if (!hideHardcoreCooldown) return orderedHardcoreRows;
+    return orderedHardcoreRows.filter((r) => (r.tracker.phaseDecimal ?? 0) !== 0);
+  }, [orderedHardcoreRows, hideHardcoreCooldown]);
 
   const availableMapLvs = useMemo(() => getDistinctMapLvs(rows), [rows]);
   const visibleRows = useMemo(() => filterRows(rows, filters), [rows, filters]);
@@ -226,6 +271,12 @@ export default function RoomPage() {
     } else {
       toast.error(t("add.failure"));
     }
+  }
+
+  function handleHardcoreSort(mode: HardcoreSortMode) {
+    const sorted = prepareManualPhaseRows(manualPhaseTrackers, nowMs, mode);
+    setHardcoreLastSort(mode);
+    setHardcoreOrder(sorted.map((r) => r.tracker.id));
   }
 
   async function handleAddHardcore(raw: string) {
@@ -399,9 +450,11 @@ export default function RoomPage() {
           <>
             <HardcoreAddBar onSubmit={handleAddHardcore} />
             <HardcoreTrackerGrid
-              rows={hardcoreRows}
-              sortMode={hardcoreSortMode}
-              onSortMode={setHardcoreSortMode}
+              rows={visibleHardcoreRows}
+              lastSort={hardcoreLastSort}
+              onSort={handleHardcoreSort}
+              hideCooldown={hideHardcoreCooldown}
+              onToggleHideCooldown={toggleHideCooldown}
               onRemove={(id) => void removeTracker(id)}
               onCycleWhole={handleCycleWhole}
               onBumpDecimal={handleBumpDecimal}

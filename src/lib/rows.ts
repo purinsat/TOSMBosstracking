@@ -63,6 +63,23 @@ export function prepareManualPhaseRows(
   return [...forward, ...countdown];
 }
 
+export function applyFrozenOrder(
+  rows: ManualPhaseRow[],
+  orderIds: string[] | null,
+): ManualPhaseRow[] {
+  if (!orderIds || orderIds.length === 0) return rows;
+  const idIndex = new Map(orderIds.map((id, i) => [id, i]));
+  return [...rows].sort((a, b) => {
+    const ai = idIndex.get(a.tracker.id);
+    const bi = idIndex.get(b.tracker.id);
+    // Newly added trackers (not in snapshot) go to the end
+    if (ai === undefined && bi === undefined) return 0;
+    if (ai === undefined) return 1;
+    if (bi === undefined) return -1;
+    return ai - bi;
+  });
+}
+
 export type SortMode = "time" | "channel";
 
 export type RowFilters = {

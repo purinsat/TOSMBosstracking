@@ -101,6 +101,9 @@ export type Dictionary = {
   "hardcore.sortBy": string;
   "hardcore.sort.time": string;
   "hardcore.sort.phase": string;
+  "hardcore.hideCooldown": string;
+  "hardcore.sortByTime": string;
+  "hardcore.sortByPhase": string;
 };
 
 const en: Dictionary = {
@@ -196,9 +199,9 @@ const en: Dictionary = {
   "tab.main": "Main",
   "tab.hardcore": "Hardcore",
 
-  "hardcore.addPlaceholder": "72 1 2:00 / 72 1 :20 / 72 1 2.5",
-  "hardcore.addHint": "Lv Ch <Phase 1-4 or 1.1-4.9> or Lv Ch <:MM or H:MM or minutes>. Press Enter to add.",
-  "hardcore.errorInvalid": "Invalid. Use: Lv Ch <phase 1-4 or 1.1-4.9 or :MM or H:MM or minutes>.",
+  "hardcore.addPlaceholder": "3 1.2 / 12 3 5 / 12 3 20m / 12 3 1h20",
+  "hardcore.addHint": "Lv [Ch] <phase 1-5 or 1.1-4.9> or <Nm or NhMM>. Channel defaults to 1. Press Enter.",
+  "hardcore.errorInvalid": "Invalid. Use: Lv [Ch] <phase 1-5, 1.1-4.9, Nm, or NhMM>.",
   "hardcore.empty": "No hardcore trackers yet. Type above and press Enter.",
   "hardcore.elapsed": "Elapsed",
   "hardcore.countdown": "Until phase 1",
@@ -206,6 +209,9 @@ const en: Dictionary = {
   "hardcore.sortBy": "Sort:",
   "hardcore.sort.time": "Time",
   "hardcore.sort.phase": "Phase",
+  "hardcore.hideCooldown": "Hide cooldown",
+  "hardcore.sortByTime": "Sort by Time",
+  "hardcore.sortByPhase": "Sort by Phase",
 };
 
 const th: Dictionary = {
@@ -301,9 +307,9 @@ const th: Dictionary = {
   "tab.main": "ปกติ",
   "tab.hardcore": "Hardcore",
 
-  "hardcore.addPlaceholder": "72 1 2:00 / 72 1 :20 / 72 1 2.5",
-  "hardcore.addHint": "Lv Ch <เฟส 1-4 หรือ 1.1-4.9> หรือ Lv Ch <:นาที หรือ ชั่วโมง:นาที>. กด Enter เพื่อเพิ่ม",
-  "hardcore.errorInvalid": "รูปแบบไม่ถูกต้อง ใช้: Lv Ch <เฟส 1-4 หรือ 1.1-4.9 หรือ :MM หรือ H:MM หรือนาที>",
+  "hardcore.addPlaceholder": "3 1.2 / 12 3 5 / 12 3 20m / 12 3 1h20",
+  "hardcore.addHint": "Lv [Ch] <เฟส 1-5 หรือ 1.1-4.9> หรือ <Nm หรือ NhMM>. ช่องเริ่มต้นคือ 1 กด Enter เพื่อเพิ่ม",
+  "hardcore.errorInvalid": "รูปแบบไม่ถูกต้อง: Lv [Ch] <เฟส 1-5, 1.1-4.9, Nm, หรือ NhMM>",
   "hardcore.empty": "ยังไม่มีการติดตาม Hardcore พิมพ์ด้านบนแล้วกด Enter",
   "hardcore.elapsed": "เวลาที่ผ่านไป",
   "hardcore.countdown": "ก่อนเฟส 1",
@@ -311,6 +317,9 @@ const th: Dictionary = {
   "hardcore.sortBy": "เรียง:",
   "hardcore.sort.time": "เวลา",
   "hardcore.sort.phase": "เฟส",
+  "hardcore.hideCooldown": "ซ่อนคูลดาวน์",
+  "hardcore.sortByTime": "เรียงตามเวลา",
+  "hardcore.sortByPhase": "เรียงตามเฟส",
 };
 
 export const DICTIONARIES: Record<Locale, Dictionary> = { en, th };
