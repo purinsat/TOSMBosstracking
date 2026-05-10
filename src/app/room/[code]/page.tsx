@@ -82,6 +82,7 @@ export default function RoomPage() {
     setCustomTrackerTime,
     resetTrackerTime,
     updateTrackerPhaseDecimal,
+    updateManualPhaseTracker,
     removeExpiredLocally,
   } = useTrackers(roomId);
 
@@ -296,6 +297,19 @@ export default function RoomPage() {
     } else {
       targetAt = new Date(Date.now() + (parsed.countdownMinutes ?? 0) * 60000).toISOString();
       phaseDecimal = 0;
+    }
+
+    // Upsert: if a tile for this Lv+Ch already exists, update it in place
+    const existing = manualPhaseTrackers.find(
+      (t) => t.mapLv === parsed.mapLv && t.ch === parsed.ch,
+    );
+
+    if (existing) {
+      // Clear auto-bump record so a new countdown can fire phase 1 bump again
+      autoBumpedIdsRef.current.delete(existing.id);
+      const ok = await updateManualPhaseTracker(existing.id, { targetAt, phaseDecimal });
+      if (!ok) toast.error(t("add.failure"));
+      return;
     }
 
     const inserted = await addTracker({

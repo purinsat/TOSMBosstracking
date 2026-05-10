@@ -31,6 +31,7 @@ export type UseTrackersResult = {
   setCustomTrackerTime: (id: string, minutes: number) => Promise<boolean>;
   resetTrackerTime: (id: string) => Promise<boolean>;
   updateTrackerPhaseDecimal: (id: string, phaseDecimal: number) => Promise<boolean>;
+  updateManualPhaseTracker: (id: string, fields: { targetAt: string; phaseDecimal: number }) => Promise<boolean>;
   removeExpiredLocally: (ids: string[]) => void;
 };
 
@@ -378,6 +379,37 @@ export function useTrackers(roomId: string | null): UseTrackersResult {
     [roomId, trackers, supabase],
   );
 
+  const updateManualPhaseTracker = useCallback<UseTrackersResult["updateManualPhaseTracker"]>(
+    async (id, fields) => {
+      if (!roomId) return false;
+      const snapshot = trackers;
+      inFlightIdsRef.current.add(id);
+      setTrackers((prev) =>
+        prev.map((item) =>
+          item.id === id
+            ? { ...item, targetAt: fields.targetAt, phaseDecimal: fields.phaseDecimal }
+            : item,
+        ),
+      );
+
+      const { error: updateError } = await supabase
+        .from("trackers")
+        .update({ target_at: fields.targetAt, phase_decimal: fields.phaseDecimal })
+        .eq("room_id", roomId)
+        .eq("id", id);
+
+      inFlightIdsRef.current.delete(id);
+
+      if (updateError) {
+        setTrackers(snapshot);
+        setError(updateError.message);
+        return false;
+      }
+      return true;
+    },
+    [roomId, trackers, supabase],
+  );
+
   const removeExpiredLocally = useCallback<UseTrackersResult["removeExpiredLocally"]>(
     (ids) => {
       if (ids.length === 0) return;
@@ -402,6 +434,7 @@ export function useTrackers(roomId: string | null): UseTrackersResult {
     setCustomTrackerTime,
     resetTrackerTime,
     updateTrackerPhaseDecimal,
+    updateManualPhaseTracker,
     removeExpiredLocally,
   };
 }
