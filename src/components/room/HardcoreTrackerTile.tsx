@@ -15,35 +15,39 @@ type Props = {
   onResetTime: (id: string) => void;
 };
 
-function getTileColorClasses(row: ManualPhaseRow): string {
-  if (!row.isCountForward) {
-    const remainingMinutes = row.remainingSeconds / 60;
-    if (remainingMinutes < 25) return "border-red-500 bg-red-950/30";
-    if (remainingMinutes <= 40) return "border-yellow-500 bg-yellow-950/25";
-    return "border-green-500 bg-green-950/20";
-  }
-  const elapsedHours = row.elapsedSeconds / 3600;
-  if (elapsedHours >= 4) return "border-rose-500 bg-rose-950/30";
-  return "border-amber-500 bg-amber-950/20";
+type PhaseColor = "blue" | "green" | "yellow" | "red";
+
+function getPhaseColor(phaseDecimal: number | null): PhaseColor {
+  const p = phaseDecimal ?? 0;
+  if (p === 0) return "blue";
+  if (p < 3) return "green";
+  if (p < 4) return "yellow";
+  return "red";
 }
 
-function getTimeColorClass(row: ManualPhaseRow): string {
-  if (!row.isCountForward) {
-    const remainingMinutes = row.remainingSeconds / 60;
-    if (remainingMinutes < 25) return "text-red-300";
-    if (remainingMinutes <= 40) return "text-yellow-200";
-    return "text-sky-100";
+function getTileColorClasses(phaseDecimal: number | null): string {
+  switch (getPhaseColor(phaseDecimal)) {
+    case "blue":   return "border-sky-500 bg-sky-950/25";
+    case "green":  return "border-green-500 bg-green-950/20";
+    case "yellow": return "border-yellow-500 bg-yellow-950/25";
+    case "red":    return "border-red-500 bg-red-950/30";
   }
-  const elapsedHours = row.elapsedSeconds / 3600;
-  if (elapsedHours >= 4) return "text-rose-300";
-  return "text-amber-200";
+}
+
+function getTimeColorClass(phaseDecimal: number | null): string {
+  switch (getPhaseColor(phaseDecimal)) {
+    case "blue":   return "text-sky-200";
+    case "green":  return "text-green-200";
+    case "yellow": return "text-yellow-200";
+    case "red":    return "text-red-300";
+  }
 }
 
 export function HardcoreTrackerTile({ row, onRemove, onCycleWhole, onBumpDecimal, onResetTime }: Props) {
   const { t } = useLocale();
   const { tracker, isCountForward, elapsedSeconds, remainingSeconds, displayPhase } = row;
-  const tileColor = getTileColorClasses(row);
-  const timeColor = getTimeColorClass(row);
+  const tileColor = getTileColorClasses(tracker.phaseDecimal);
+  const timeColor = getTimeColorClass(tracker.phaseDecimal);
 
   const timeLabel = isCountForward
     ? `+${formatMinutesSeconds(elapsedSeconds)}`

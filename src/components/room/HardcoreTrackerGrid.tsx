@@ -31,7 +31,7 @@ export function HardcoreTrackerGrid({
 
   return (
     <div className="flex flex-col gap-2">
-      {/* Toolbar: snapshot sort buttons + hide-cooldown toggle */}
+      {/* Toolbar: snapshot sort buttons + live Lv sort + hide-cooldown toggle */}
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
@@ -55,6 +55,25 @@ export function HardcoreTrackerGrid({
         >
           {t("hardcore.sortByPhase")}
         </button>
+        {/* Lv sort — live; clicking again flips direction */}
+        {(() => {
+          const lvActive = lastSort === "lv-asc" || lastSort === "lv-desc";
+          const nextLvMode: HardcoreSortMode = lastSort === "lv-asc" ? "lv-desc" : "lv-asc";
+          const arrow = lastSort === "lv-asc" ? " ↑" : lastSort === "lv-desc" ? " ↓" : "";
+          return (
+            <button
+              type="button"
+              onClick={() => onSort(nextLvMode)}
+              className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                lvActive
+                  ? "border-sky-500 bg-sky-600 text-white"
+                  : "border-slate-700 bg-slate-900 text-slate-300 hover:text-slate-100"
+              }`}
+            >
+              {t("hardcore.sortByLv")}{arrow}
+            </button>
+          );
+        })()}
         <label className="ml-auto flex cursor-pointer items-center gap-1.5 text-[11px] text-slate-300">
           <input
             type="checkbox"

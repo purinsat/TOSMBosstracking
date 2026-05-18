@@ -183,15 +183,21 @@ export default function RoomPage() {
     [presetTrackers, settings, nowMs, sortMode],
   );
 
-  const hardcoreRows = useMemo(
-    () => prepareManualPhaseRows(manualPhaseTrackers, nowMs, "time"),
-    [manualPhaseTrackers, nowMs],
-  );
+  const hardcoreRows = useMemo(() => {
+    const baseMode: HardcoreSortMode =
+      hardcoreLastSort === "lv-asc" || hardcoreLastSort === "lv-desc"
+        ? hardcoreLastSort
+        : "time";
+    return prepareManualPhaseRows(manualPhaseTrackers, nowMs, baseMode);
+  }, [manualPhaseTrackers, nowMs, hardcoreLastSort]);
 
-  const orderedHardcoreRows = useMemo(
-    () => applyFrozenOrder(hardcoreRows, hardcoreOrder),
-    [hardcoreRows, hardcoreOrder],
-  );
+  const orderedHardcoreRows = useMemo(() => {
+    // Lv modes are live-sorted via hardcoreRows; skip frozen order
+    if (hardcoreLastSort === "lv-asc" || hardcoreLastSort === "lv-desc") {
+      return hardcoreRows;
+    }
+    return applyFrozenOrder(hardcoreRows, hardcoreOrder);
+  }, [hardcoreRows, hardcoreOrder, hardcoreLastSort]);
 
   const visibleHardcoreRows = useMemo(() => {
     if (!hideHardcoreCooldown) return orderedHardcoreRows;
@@ -275,8 +281,13 @@ export default function RoomPage() {
   }
 
   function handleHardcoreSort(mode: HardcoreSortMode) {
-    const sorted = prepareManualPhaseRows(manualPhaseTrackers, nowMs, mode);
     setHardcoreLastSort(mode);
+    if (mode === "lv-asc" || mode === "lv-desc") {
+      // Live sort — no snapshot; clear any frozen order
+      setHardcoreOrder(null);
+      return;
+    }
+    const sorted = prepareManualPhaseRows(manualPhaseTrackers, nowMs, mode);
     setHardcoreOrder(sorted.map((r) => r.tracker.id));
   }
 

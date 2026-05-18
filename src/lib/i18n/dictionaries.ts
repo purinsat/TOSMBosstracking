@@ -104,6 +104,7 @@ export type Dictionary = {
   "hardcore.hideCooldown": string;
   "hardcore.sortByTime": string;
   "hardcore.sortByPhase": string;
+  "hardcore.sortByLv": string;
 };
 
 const en: Dictionary = {
@@ -212,6 +213,7 @@ const en: Dictionary = {
   "hardcore.hideCooldown": "Hide cooldown",
   "hardcore.sortByTime": "Sort by Time",
   "hardcore.sortByPhase": "Sort by Phase",
+  "hardcore.sortByLv": "Sort by Lv",
 };
 
 const th: Dictionary = {
@@ -320,6 +322,7 @@ const th: Dictionary = {
   "hardcore.hideCooldown": "ซ่อนคูลดาวน์",
   "hardcore.sortByTime": "เรียงตามเวลา",
   "hardcore.sortByPhase": "เรียงตามเฟส",
+  "hardcore.sortByLv": "เรียงตาม Lv",
 };
 
 export const DICTIONARIES: Record<Locale, Dictionary> = { en, th };

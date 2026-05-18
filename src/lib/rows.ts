@@ -19,7 +19,7 @@ export function formatManualPhaseDisplay(phaseDecimal: number | null): string {
   return `${whole}.${decimal}`;
 }
 
-export type HardcoreSortMode = "time" | "phase";
+export type HardcoreSortMode = "time" | "phase" | "lv-asc" | "lv-desc";
 
 function phaseDecimalSortKey(phaseDecimal: number | null): number {
   // Higher = shown first. BOSS ON (>=5) → 6, phase 1–4.9 → value, No event (0/null) → -1
@@ -44,6 +44,16 @@ export function prepareManualPhaseRows(
       const displayPhase = formatManualPhaseDisplay(tracker.phaseDecimal);
       return { tracker, remainingSeconds, elapsedSeconds, isCountForward, displayPhase };
     });
+
+  if (sortMode === "lv-asc" || sortMode === "lv-desc") {
+    const dir = sortMode === "lv-asc" ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      const lvDiff = (a.tracker.mapLv - b.tracker.mapLv) * dir;
+      if (lvDiff !== 0) return lvDiff;
+      if (a.tracker.ch !== b.tracker.ch) return a.tracker.ch - b.tracker.ch;
+      return phaseDecimalSortKey(b.tracker.phaseDecimal) - phaseDecimalSortKey(a.tracker.phaseDecimal);
+    });
+  }
 
   if (sortMode === "phase") {
     return rows.sort((a, b) => {
