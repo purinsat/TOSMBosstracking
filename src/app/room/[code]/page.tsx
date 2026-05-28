@@ -351,7 +351,7 @@ export default function RoomPage() {
       return;
     }
     const currentWhole = current === 0 ? 0 : Math.floor(current);
-    const nextWhole = currentWhole === 0 ? 1 : (currentWhole % 4) + 1;
+    const nextWhole = currentWhole === 0 ? 1 : currentWhole === 4 ? 5 : currentWhole + 1;
     // Always a whole number — decimal resets to 0
     void updateTrackerPhaseDecimal(id, nextWhole);
   }
@@ -363,11 +363,11 @@ export default function RoomPage() {
     if (tracker.phaseDecimal >= 5.0) return;
     const whole = Math.floor(tracker.phaseDecimal);
     const currentDecimal = Math.round((tracker.phaseDecimal - whole) * 10);
-    if (currentDecimal >= 9) {
-      // Roll over: 3.9→4, 4.9→5 (BOSS ON)
+    const nextDecimal = currentDecimal + 2;
+    if (nextDecimal >= 10) {
       void updateTrackerPhaseDecimal(id, whole + 1);
     } else {
-      void updateTrackerPhaseDecimal(id, whole + (currentDecimal + 1) / 10);
+      void updateTrackerPhaseDecimal(id, whole + nextDecimal / 10);
     }
   }
 

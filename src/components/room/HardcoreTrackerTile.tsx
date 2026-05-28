@@ -134,9 +134,9 @@ export function HardcoreTrackerTile({ row, onRemove, onCycleWhole, onBumpDecimal
               onClick={() => debounce("decimal", () => onBumpDecimal(tracker.id))}
               className="rounded-full border border-slate-600 bg-slate-950 px-1.5 py-0.5 text-[10px] font-bold text-slate-300 hover:border-sky-400 hover:text-sky-300 active:scale-95"
               aria-label={t("hardcore.bumpDecimal")}
-              title="+0.1"
+              title="+0.2"
             >
-              +.1
+              +.2
             </button>
           </>
         )}
