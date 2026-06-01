@@ -9,12 +9,12 @@ export function PromoSection() {
       <p className="text-base text-slate-200">
         {t("promo.subscribe")}{" "}
         <a
-          href="https://www.youtube.com/@PonderingTH"
+          href="https://www.youtube.com/@KRUN-KID"
           target="_blank"
           rel="noopener noreferrer"
           className="font-semibold text-sky-300 underline underline-offset-4"
         >
-          youtube.com/@PonderingTH
+          youtube.com/@KRUN-KID
         </a>
       </p>
       <p className="mt-2 text-sm text-slate-300">

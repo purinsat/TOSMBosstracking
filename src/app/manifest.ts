@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "TOSM Boss Tracking By PonderingTH",
+    name: "TOSM Boss Tracking By KRUN-KID",
     short_name: "Boss Tracker",
     description: "Fast boss phase and spawn countdown tracking app.",
     start_url: "/",

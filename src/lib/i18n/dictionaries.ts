@@ -105,6 +105,9 @@ export type Dictionary = {
   "hardcore.sortByTime": string;
   "hardcore.sortByPhase": string;
   "hardcore.sortByLv": string;
+  "hardcore.episodeLabel": string;
+  "hardcore.episodePlaceholder": string;
+  "hardcore.redCardOnly": string;
 };
 
 const en: Dictionary = {
@@ -214,6 +217,9 @@ const en: Dictionary = {
   "hardcore.sortByTime": "Sort by Time",
   "hardcore.sortByPhase": "Sort by Phase",
   "hardcore.sortByLv": "Sort by Lv",
+  "hardcore.episodeLabel": "Episode",
+  "hardcore.episodePlaceholder": "e.g. 1-3 or 1,3",
+  "hardcore.redCardOnly": "Red card only",
 };
 
 const th: Dictionary = {
@@ -323,6 +329,9 @@ const th: Dictionary = {
   "hardcore.sortByTime": "เรียงตามเวลา",
   "hardcore.sortByPhase": "เรียงตามเฟส",
   "hardcore.sortByLv": "เรียงตาม Lv",
+  "hardcore.episodeLabel": "ตอน (EP)",
+  "hardcore.episodePlaceholder": "เช่น 1-3 หรือ 1,3",
+  "hardcore.redCardOnly": "เฉพาะแมพการ์ดแดง",
 };
 
 export const DICTIONARIES: Record<Locale, Dictionary> = { en, th };

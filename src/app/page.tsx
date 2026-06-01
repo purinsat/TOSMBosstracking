@@ -104,7 +104,7 @@ export default function Home() {
       <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
         <div className="flex items-start justify-between gap-2">
           <h1 className="text-3xl font-bold tracking-wide sm:text-4xl">
-            TOSM Boss Tracking By PonderingTH
+            TOSM Boss Tracking By KRUN-KID
           </h1>
           <LocaleToggle />
         </div>
@@ -164,12 +164,12 @@ export default function Home() {
           <p className="text-base text-slate-200">
             {t("promo.subscribe")}{" "}
             <a
-              href="https://www.youtube.com/@PonderingTH"
+              href="https://www.youtube.com/@KRUN-KID"
               target="_blank"
               rel="noopener noreferrer"
               className="font-semibold text-sky-300 underline underline-offset-4"
             >
-              youtube.com/@PonderingTH
+              youtube.com/@KRUN-KID
             </a>
           </p>
           <p className="mt-2 text-sm text-slate-300">

@@ -14,6 +14,26 @@ export const WHATS_NEW_STORAGE_KEY = "tosm-bt-whats-new-seen";
  */
 export const WHATS_NEW_RELEASES: WhatsNewEntry[] = [
   {
+    version: "2026.06.01",
+    date: "2026-06-01",
+    highlights: {
+      en: [
+        "Hardcore: Episode filter — type 1-3 or 1,3 to show only maps from those episodes.",
+        "Hardcore: Red card only toggle — show only maps that drop red cards (83, 89, 93, 103, 113, 123, 133).",
+        "Hardcore: Both filters combine (AND) and are remembered across refresh.",
+        "Hardcore: Phase 4 cycle button now goes to BOSS ON instead of back to Phase 1.",
+        "Hardcore: Decimal bump button increased to +0.2 (was +0.1).",
+      ],
+      th: [
+        "Hardcore: ฟิลเตอร์ตอน — พิมพ์ 1-3 หรือ 1,3 เพื่อแสดงเฉพาะแมพในตอนที่เลือก",
+        "Hardcore: ปุ่มเฉพาะแมพการ์ดแดง — แสดงเฉพาะ Lv 83, 89, 93, 103, 113, 123, 133",
+        "Hardcore: ทั้งสองฟิลเตอร์ทำงานร่วมกัน (AND) และจำค่าไว้หลัง refresh",
+        "Hardcore: ปุ่มเฟส 4 ตอนนี้วนไปที่ BOSS ON แทนที่จะกลับเฟส 1",
+        "Hardcore: ปุ่มเพิ่มทศนิยมเปลี่ยนเป็น +0.2 (เดิม +0.1)",
+      ],
+    },
+  },
+  {
     version: "2026.05.10",
     date: "2026-05-10",
     highlights: {

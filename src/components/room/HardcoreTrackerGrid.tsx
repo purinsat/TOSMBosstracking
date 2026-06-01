@@ -10,6 +10,10 @@ type Props = {
   onSort: (mode: HardcoreSortMode) => void;
   hideCooldown: boolean;
   onToggleHideCooldown: () => void;
+  episodeFilter: string;
+  onEpisodeFilterChange: (value: string) => void;
+  redCardOnly: boolean;
+  onToggleRedCard: () => void;
   onRemove: (id: string) => void;
   onCycleWhole: (id: string) => void;
   onBumpDecimal: (id: string) => void;
@@ -22,6 +26,10 @@ export function HardcoreTrackerGrid({
   onSort,
   hideCooldown,
   onToggleHideCooldown,
+  episodeFilter,
+  onEpisodeFilterChange,
+  redCardOnly,
+  onToggleRedCard,
   onRemove,
   onCycleWhole,
   onBumpDecimal,
@@ -82,6 +90,34 @@ export function HardcoreTrackerGrid({
             className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900"
           />
           {t("hardcore.hideCooldown")}
+        </label>
+      </div>
+
+      {/* Filter row: episode input + red-card toggle */}
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="flex items-center gap-1.5 text-[11px] text-slate-400">
+          <span className="shrink-0">{t("hardcore.episodeLabel")}</span>
+          <input
+            type="text"
+            value={episodeFilter}
+            onChange={(e) => onEpisodeFilterChange(e.target.value)}
+            placeholder={t("hardcore.episodePlaceholder")}
+            aria-label={t("hardcore.episodeLabel")}
+            className="w-28 rounded-lg border border-slate-700 bg-slate-950 px-2 py-1 text-[11px] text-slate-100 placeholder-slate-600 focus:border-sky-500 focus:outline-none"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+          />
+        </label>
+        <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-slate-300">
+          <input
+            type="checkbox"
+            checked={redCardOnly}
+            onChange={onToggleRedCard}
+            className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900"
+          />
+          {t("hardcore.redCardOnly")}
         </label>
       </div>
 

@@ -36,7 +36,7 @@ export function AppBar({
     <header className="flex flex-wrap items-center justify-between gap-2">
       <div>
         <h1 className="text-2xl font-bold tracking-wide sm:text-3xl">
-          TOSM Boss Tracking By PonderingTH
+          TOSM Boss Tracking By KRUN-KID
         </h1>
         <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-400">
           <span>

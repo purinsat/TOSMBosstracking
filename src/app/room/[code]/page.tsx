@@ -33,6 +33,7 @@ import {
   parseQuickCommand,
 } from "@/lib/commands";
 import { getTotalMinutes } from "@/lib/countdown";
+import { episodeMapLvSet, parseEpisodeQuery, RED_CARD_LV_SET } from "@/lib/episodes";
 import { getPresetTimings } from "@/lib/mappers";
 import {
   ALL_FILTERS,
@@ -94,6 +95,8 @@ export default function RoomPage() {
   const [hardcoreLastSort, setHardcoreLastSort] = useState<HardcoreSortMode>("time");
   const [hardcoreOrder, setHardcoreOrder] = useState<string[] | null>(null);
   const [hideHardcoreCooldown, setHideHardcoreCooldown] = useState(false);
+  const [episodeFilter, setEpisodeFilter] = useState("");
+  const [redCardOnly, setRedCardOnly] = useState(false);
   const [filters, setFilters] = useState<RowFilters>(ALL_FILTERS);
   const [grouped, setGrouped] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
@@ -104,11 +107,16 @@ export default function RoomPage() {
     setTab(readInitialTab());
   }, []);
 
-  // Read persisted hide-cooldown preference
+  // Read persisted hide-cooldown, episode filter, and red-card-only preferences
   useEffect(() => {
     try {
       if (window.localStorage.getItem("hardcoreHideCooldown") === "1") {
         setHideHardcoreCooldown(true);
+      }
+      const savedEpisode = window.localStorage.getItem("hardcoreEpisodeFilter");
+      if (savedEpisode) setEpisodeFilter(savedEpisode);
+      if (window.localStorage.getItem("hardcoreRedCardOnly") === "1") {
+        setRedCardOnly(true);
       }
     } catch {}
   }, []);
@@ -117,6 +125,19 @@ export default function RoomPage() {
     setHideHardcoreCooldown((prev) => {
       const next = !prev;
       try { window.localStorage.setItem("hardcoreHideCooldown", next ? "1" : "0"); } catch {}
+      return next;
+    });
+  }
+
+  function handleEpisodeFilterChange(value: string) {
+    setEpisodeFilter(value);
+    try { window.localStorage.setItem("hardcoreEpisodeFilter", value); } catch {}
+  }
+
+  function toggleRedCardOnly() {
+    setRedCardOnly((prev) => {
+      const next = !prev;
+      try { window.localStorage.setItem("hardcoreRedCardOnly", next ? "1" : "0"); } catch {}
       return next;
     });
   }
@@ -200,9 +221,20 @@ export default function RoomPage() {
   }, [hardcoreRows, hardcoreOrder, hardcoreLastSort]);
 
   const visibleHardcoreRows = useMemo(() => {
-    if (!hideHardcoreCooldown) return orderedHardcoreRows;
-    return orderedHardcoreRows.filter((r) => (r.tracker.phaseDecimal ?? 0) !== 0);
-  }, [orderedHardcoreRows, hideHardcoreCooldown]);
+    let result = orderedHardcoreRows;
+    if (hideHardcoreCooldown) {
+      result = result.filter((r) => (r.tracker.phaseDecimal ?? 0) !== 0);
+    }
+    const episodes = parseEpisodeQuery(episodeFilter);
+    if (episodes.length > 0) {
+      const lvSet = episodeMapLvSet(episodes);
+      result = result.filter((r) => lvSet.has(r.tracker.mapLv));
+    }
+    if (redCardOnly) {
+      result = result.filter((r) => RED_CARD_LV_SET.has(r.tracker.mapLv));
+    }
+    return result;
+  }, [orderedHardcoreRows, hideHardcoreCooldown, episodeFilter, redCardOnly]);
 
   const availableMapLvs = useMemo(() => getDistinctMapLvs(rows), [rows]);
   const visibleRows = useMemo(() => filterRows(rows, filters), [rows, filters]);
@@ -480,6 +512,10 @@ export default function RoomPage() {
               onSort={handleHardcoreSort}
               hideCooldown={hideHardcoreCooldown}
               onToggleHideCooldown={toggleHideCooldown}
+              episodeFilter={episodeFilter}
+              onEpisodeFilterChange={handleEpisodeFilterChange}
+              redCardOnly={redCardOnly}
+              onToggleRedCard={toggleRedCardOnly}
               onRemove={(id) => void removeTracker(id)}
               onCycleWhole={handleCycleWhole}
               onBumpDecimal={handleBumpDecimal}

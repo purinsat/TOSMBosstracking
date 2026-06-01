@@ -7,7 +7,7 @@ import { WhatsNewProvider } from "@/components/ui/WhatsNewModal";
 import { LocaleProvider } from "@/lib/i18n/LocaleProvider";
 
 export const metadata: Metadata = {
-  title: "TOSM Boss Tracking By PonderingTH",
+  title: "TOSM Boss Tracking By KRUN-KID",
   description: "Fast boss phase and spawn countdown tracking app.",
   applicationName: "Boss Tracker",
   appleWebApp: {
